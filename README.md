@@ -20,3 +20,10 @@ system must demonstrate robustness.
 Own project. Must include, at minimum, a state-space model with controllability and observability
 analysis, at least one calibrated exteroceptive sensor, a Kalman filter or observer, and a feedback
 controller
+
+# Packages 
+
+pip install mujoco mujoco-viewer
+pip install mujoco
+
+***Documentation for Mujoco:*** https://mujoco.readthedocs.io/en/stable/programming/simulation.html
