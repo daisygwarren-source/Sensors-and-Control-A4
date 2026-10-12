@@ -3,8 +3,8 @@ import cv2
 import mujoco
 
 from simulator import build
-from main import HOME, W, H, intrinsics
-from src.perception import calibrate
+from main import HOME, W, H, K_CALIB, intrinsics, grab_rgbd
+from src.perception import calibrate, d435_noise
 
 SQ, COLS, ROWS = 0.02, 9, 7
 BOX = mujoco.mjtGeom.mjGEOM_BOX
@@ -43,12 +43,12 @@ if __name__ == "__main__":
         data.mocap_pos[0] = cam_pos + cam_R @ offset
         data.mocap_quat[0] = q
         mujoco.mj_forward(model, data)
-        renderer.update_scene(data, camera="wrist_cam")
-        images.append(cv2.cvtColor(renderer.render(), cv2.COLOR_RGB2GRAY))
+        rgb, _ = d435_noise(*grab_rgbd(renderer, data), rng)
+        images.append(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY))
 
-    K, rms, n = calibrate(images, (COLS - 1, ROWS - 1), SQ)
-    K_true = intrinsics(model)
+    K, dist, rms, n = calibrate(images, (COLS - 1, ROWS - 1), SQ)
     print(f"used {n}/{len(images)} images, reprojection RMS {rms:.3f} px")
     print("K calibrated =\n", K.round(2))
-    print("K true =\n", K_true.round(2))
-    np.save("K_calib.npy", K)
+    print("K true (evaluation only) =\n", intrinsics(model).round(2))
+    print("distortion =", dist.ravel().round(4))
+    np.save(K_CALIB, K)
