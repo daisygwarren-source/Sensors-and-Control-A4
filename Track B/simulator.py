@@ -14,6 +14,8 @@ TABLE_POS = np.array([0.5, 0.0, 0.0])   # table centre (x forward of robot base)
 TABLE_HALF = np.array([0.3, 0.4, 0.02])  # half-sizes of the tabletop slab
 TABLE_TOP_Z = 0.0 + 2 * TABLE_HALF[2]    # tabletop sits on the floor -> top at z=0.04
 OBJ_HALF = 0.02                          # 4 cm cube
+ARM_JOINTS = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
+              "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
  
  
 def build(object_xy=(0.5, 0.0)) -> mujoco.MjSpec:
@@ -37,6 +39,10 @@ def build(object_xy=(0.5, 0.0)) -> mujoco.MjSpec:
         xyaxes=[1, 0, 0, 0, 0, 1],  # camera looks along -z_cam = +y of wrist_3 (tool axis)
         fovy=58,                    # ~RealSense D435 colour vertical FOV
     )
+
+    for j in ARM_JOINTS:
+        spec.add_sensor(name=f"enc_{j}", type=mujoco.mjtSensor.mjSENS_JOINTPOS,
+                        objtype=mujoco.mjtObj.mjOBJ_JOINT, objname=j)
  
     world = spec.worldbody
  

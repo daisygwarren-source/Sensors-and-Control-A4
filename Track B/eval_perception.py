@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import mujoco
 
-from main import W, H, K_CALIB, make_trial, grab_rgbd, cube_truth_eval_only
+from main import W, H, K_CALIB, make_trial, grab_rgbd, read_encoders, cube_truth_eval_only
 from src.perception import T_base_cam, locate_cube, d435_noise
 
 ap = argparse.ArgumentParser()
@@ -17,7 +17,7 @@ for _ in range(args.trials):
     for _ in range(500):
         mujoco.mj_step(model, data)
     renderer = mujoco.Renderer(model, height=H, width=W)
-    scenes.append((*grab_rgbd(renderer, data), data.qpos[:6].copy(), cube_truth_eval_only(data)))
+    scenes.append((*grab_rgbd(renderer, data), read_encoders(data, rng), cube_truth_eval_only(data)))
     renderer.close()
 
 print("noise | detected | mean mm | max mm | std x/y/z mm")

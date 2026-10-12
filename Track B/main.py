@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 
-from simulator import build, TABLE_POS
+from simulator import build, TABLE_POS, ARM_JOINTS
 from src.perception import T_base_cam, locate_cube, d435_noise
 
 HOME = np.array([2.817, -1.788, 1.681, -1.463, -1.571, -0.325])  # look pose: wrist cam ~0.51 m up, centred over the spawn area, looking straight down
@@ -40,6 +40,12 @@ def grab_rgbd(renderer, data, cam="wrist_cam"):
     depth = renderer.render()          # metres along camera z
     renderer.disable_depth_rendering()
     return rgb, depth
+
+
+def read_encoders(data, rng, bits=20):
+    lsb = 2 * np.pi / 2 ** bits
+    q = np.array([data.sensor(f"enc_{j}").data[0] for j in ARM_JOINTS])
+    return np.round((q + lsb * rng.standard_normal(len(q))) / lsb) * lsb
 
 
 def intrinsics(model, cam="wrist_cam"):
@@ -76,7 +82,7 @@ if __name__ == "__main__":
             controller(model, data)
             mujoco.mj_step(model, data)
         rgb, depth = d435_noise(*grab_rgbd(renderer, data), rng)
-        q_enc = data.qpos[:6].copy()
+        q_enc = read_encoders(data, rng)
         cube = locate_cube(rgb, depth, np.load(K_CALIB), T_base_cam(q_enc))
         print("cube estimate (base frame):", None if cube is None else cube.round(4))
         print("cube ground truth (evaluation only):", cube_truth_eval_only(data).round(4))
