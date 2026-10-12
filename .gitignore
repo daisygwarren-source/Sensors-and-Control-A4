@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+wrist_rgb.png
+wrist_depth.png
+overview.png

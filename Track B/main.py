@@ -14,7 +14,7 @@ from pathlib import Path
 
 from simulator import build, TABLE_POS
 
-HOME = np.array([np.pi, -1.9, 2.0, -1.67, -1.5708, 0.0])  # "ready" pose: wrist cam ~0.4 m above table, looking down
+HOME = np.array([2.817, -1.788, 1.681, -1.463, -1.571, -0.325])  # look pose: wrist cam ~0.51 m up, centred over the spawn area, looking straight down
 W, H = 640, 480
 
 
