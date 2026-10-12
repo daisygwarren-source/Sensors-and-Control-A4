@@ -13,9 +13,11 @@ from pathlib import Path
 
 
 from simulator import build, TABLE_POS
+from src.perception import T_base_cam, locate_cube, d435_noise
 
 HOME = np.array([2.817, -1.788, 1.681, -1.463, -1.571, -0.325])  # look pose: wrist cam ~0.51 m up, centred over the spawn area, looking straight down
 W, H = 640, 480
+K_CALIB = Path(__file__).resolve().parent / "K_calib.npy"
 
 
 def make_trial(rng):
@@ -47,6 +49,11 @@ def intrinsics(model, cam="wrist_cam"):
     return np.array([[f, 0, W / 2], [0, f, H / 2], [0, 0, 1]])
 
 
+def cube_truth_eval_only(data):
+    b = data.body("base")
+    return b.xmat.reshape(3, 3).T @ (data.body("target").xpos - b.xpos)
+
+
 def controller(model, data):
     """PLACEHOLDER: replace with your state-space joint controller / IBVS / PBVS.
     Must act on *estimated* state, not data.qpos ground truth."""
@@ -68,14 +75,17 @@ if __name__ == "__main__":
         for _ in range(500):
             controller(model, data)
             mujoco.mj_step(model, data)
-        rgb, depth = grab_rgbd(renderer, data)
+        rgb, depth = d435_noise(*grab_rgbd(renderer, data), rng)
+        q_enc = data.qpos[:6].copy()
+        cube = locate_cube(rgb, depth, np.load(K_CALIB), T_base_cam(q_enc))
+        print("cube estimate (base frame):", None if cube is None else cube.round(4))
+        print("cube ground truth (evaluation only):", cube_truth_eval_only(data).round(4))
         renderer.update_scene(data, camera="overview")
         overview = renderer.render()
         import imageio.v3 as iio
         iio.imwrite("wrist_rgb.png", rgb)
         iio.imwrite("overview.png", overview)
         iio.imwrite("wrist_depth.png", (255 * np.clip(depth / 1.5, 0, 1)).astype(np.uint8))
-        print("target true pos:", data.body("target").xpos.round(3), "| depth range:", depth.min().round(3), depth.max().round(3))
     else:
         import mujoco.viewer
         with mujoco.viewer.launch_passive(model, data) as viewer:
