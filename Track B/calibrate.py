@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import cv2
 import mujoco
@@ -25,6 +26,10 @@ def calib_model():
 
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--free-distortion", action="store_true")
+    args = ap.parse_args()
+
     rng = np.random.default_rng(0)
     model = calib_model()
     data = mujoco.MjData(model)
@@ -32,6 +37,8 @@ if __name__ == "__main__":
     mujoco.mj_forward(model, data)
     renderer = mujoco.Renderer(model, height=H, width=W)
 
+    # Scene setup only: the camera's true pose is used to place the checkerboard in front of it,
+    # like a person holding the board up. calibrate() below sees only the rendered images.
     cam = model.camera("wrist_cam").id
     cam_pos, cam_R = data.cam_xpos[cam].copy(), data.cam_xmat[cam].reshape(3, 3).copy()
     images = []
@@ -46,9 +53,10 @@ if __name__ == "__main__":
         rgb, _ = d435_noise(*grab_rgbd(renderer, data), rng)
         images.append(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY))
 
-    K, dist, rms, n = calibrate(images, (COLS - 1, ROWS - 1), SQ)
+    K, dist, rms, n = calibrate(images, (COLS - 1, ROWS - 1), SQ, fix_distortion=not args.free_distortion)
     print(f"used {n}/{len(images)} images, reprojection RMS {rms:.3f} px")
     print("K calibrated =\n", K.round(2))
     print("K true (evaluation only) =\n", intrinsics(model).round(2))
     print("distortion =", dist.ravel().round(4))
-    np.save(K_CALIB, K)
+    if not args.free_distortion:
+        np.save(K_CALIB, K)

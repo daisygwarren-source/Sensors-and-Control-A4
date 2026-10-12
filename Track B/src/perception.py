@@ -79,12 +79,12 @@ def points(sel, depth, K, T_bc):
     return transform(T_bc, backproject(K, u, v, depth[v, u]))
 
 
-def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.01):
+def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=3):
     mask = cube_mask(rgb)
     if mask is None or mask[[0, -1]].any() or mask[:, [0, -1]].any():
         return None
     m = mask.astype(np.uint8)
-    inner = cv2.erode(m, np.ones((5, 5), np.uint8)) > 0
+    inner = cv2.erode(m, np.ones((erode, erode), np.uint8)) > 0
     ring = (cv2.dilate(m, np.ones((31, 31), np.uint8)) > 0) & ~(cv2.dilate(m, np.ones((11, 11), np.uint8)) > 0)
     table = points(ring & (depth > 0), depth, K, T_bc)
     if len(table) < 20:
