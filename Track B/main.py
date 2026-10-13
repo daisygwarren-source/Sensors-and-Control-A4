@@ -14,10 +14,16 @@ from pathlib import Path
 
 from simulator import build, TABLE_POS, ARM_JOINTS
 from src.perception import T_base_cam, locate_cube, d435_noise
+from src.estimation import KalmanFilter3D
+from src.ik import IKSolver
+
 
 HOME = np.array([2.817, -1.788, 1.681, -1.463, -1.571, -0.325])  # look pose: wrist cam ~0.51 m up, centred over the spawn area, looking straight down
 W, H = 640, 480
 K_CALIB = Path(__file__).resolve().parent / "K_calib.npy"
+
+kf = KalmanFilter3D(dt=0.02)
+ik = IKSolver()
 
 
 def make_trial(rng):
@@ -61,8 +67,6 @@ def cube_truth_eval_only(data):
 
 
 def controller(model, data):
-    """PLACEHOLDER: replace with your state-space joint controller / IBVS / PBVS.
-    Must act on *estimated* state, not data.qpos ground truth."""
     data.ctrl[:6] = HOME
 
 
@@ -84,6 +88,12 @@ if __name__ == "__main__":
         rgb, depth = d435_noise(*grab_rgbd(renderer, data), rng)
         q_enc = read_encoders(data, rng)
         cube = locate_cube(rgb, depth, np.load(K_CALIB), T_base_cam(q_enc))
+        b = data.body("base")
+
+        print("base position:", b.xpos)
+        print("cube world:", data.body("target").xpos)
+        print("cube base:", cube_truth_eval_only(data))
+        print("gripper world:", data.site("gripper/pinch").xpos)
         print("cube estimate (base frame):", None if cube is None else cube.round(4))
         print("cube ground truth (evaluation only):", cube_truth_eval_only(data).round(4))
         renderer.update_scene(data, camera="overview")
