@@ -17,6 +17,7 @@ class IKSolver:
         damping=1e-2,
         tol=1e-3,
     ):
+
         q = q_init.copy()
 
         site_id = model.site(self.site_name).id
@@ -46,7 +47,6 @@ class IKSolver:
 
             J = Jp[:, :6]
 
-            # damped least squares
             dq = (
                 J.T
                 @ np.linalg.solve(
@@ -58,7 +58,5 @@ class IKSolver:
             dq = np.clip(dq, -0.05, 0.05)
 
             q += dq
-            
-        print("IK error:", np.linalg.norm(error))
 
         return q

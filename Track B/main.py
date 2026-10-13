@@ -67,7 +67,44 @@ def cube_truth_eval_only(data):
 
 
 def controller(model, data):
-    data.ctrl[:6] = HOME
+
+    q = data.qpos[:6].copy()
+
+    # cube position in WORLD frame
+    cube_world = data.body("target").xpos.copy()
+
+    # target above cube
+    target = cube_world + np.array([0.0, 0.0, 0.05])
+
+    gripper = data.site("gripper/pinch").xpos.copy()
+
+    error = np.linalg.norm(target - gripper)
+
+    # print occasionally instead of every frame
+    if hasattr(controller, "counter"):
+        controller.counter += 1
+    else:
+        controller.counter = 0
+
+    if controller.counter % 100 == 0:
+        print("target :", target.round(3))
+        print("gripper:", gripper.round(3))
+        print("error  :", round(error, 3))
+
+    q_des = ik.solve(
+        model,
+        data,
+        target,
+        q,
+        iterations=50,
+    )
+
+    # smooth movement
+    alpha = 0.2
+    data.ctrl[:6] = (1 - alpha) * q + alpha * q_des
+
+    # keep gripper open
+    data.ctrl[6] = 0
 
 
 if __name__ == "__main__":

@@ -4,19 +4,20 @@ def controller(model, data):
 
     cube_world = data.body("target").xpos.copy()
 
-    print("target:", cube_world)
-
-    target = np.array([
-        cube_world[0],
-        cube_world[1],
-        cube_world[2] + 0.15,
-    ])
+    # target 15 cm above cube
+    target = cube_world + np.array([0.0, 0.0, 0.15])
 
     q_des = ik.solve(
         model,
         data,
         target,
         q,
+        iterations=10,
     )
 
-    data.ctrl[:6] = q_des
+    # smooth movement towards IK solution
+    alpha = 0.05
+    data.ctrl[:6] = (1 - alpha) * q + alpha * q_des
+
+    # keep gripper open
+    data.ctrl[6] = 0
