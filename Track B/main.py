@@ -91,7 +91,7 @@ def truth_eval_only(data):
 # cube_R scales the R measured from static trials at HOME; x4 brings NEES to about 3 (evaluate.py --study cube)
 DEFAULTS = dict(cam_noise=1.0, enc_bits=20, mass_scale=1.0, use_dhat=True, lqr={}, kf={}, cube_R=4.0,
                 cube_cv=False, cube_q=1e-7,
-                push=None, nudge=None, t_max=30.0)
+                push=None, nudge=None, slide=None, t_max=30.0)
 
 
 def run_trial(model, data, rng, viewer=None, verbose=False, **cfg):
@@ -118,6 +118,7 @@ def run_trial(model, data, rng, viewer=None, verbose=False, **cfg):
     cam_every = round(CAM_DT / dt)
     wrist = model.body("wrist_3_link").id
     cq = model.joint("target_free").qposadr[0]
+    cd, slide = model.joint("target_free").dofadr[0], None
     u, e, q_ref = np.zeros(6), np.zeros(6), y.copy()
     yaws, n_meas, n_rej, streak, nudged = [], 0, 0, 0, False
     log, res = defaultdict(list), dict(lifted=False, placed=False, events={})
@@ -129,6 +130,13 @@ def run_trial(model, data, rng, viewer=None, verbose=False, **cfg):
         if cfg["nudge"] and not nudged and task.phase == cfg["nudge"][0] and t - task.t0 > cfg["nudge"][1]:
             data.qpos[cq:cq + 2] += cfg["nudge"][2]
             nudged = True
+        if cfg["slide"] and task.phase != "look":
+            if slide is None:
+                # sideways along the table, towards its centre line so it stays on the table
+                slide = (t, -(np.sign(data.qpos[cq + 1]) or 1.0))
+            delay, dur, speed = cfg["slide"]
+            if delay <= t - slide[0] < delay + dur:
+                data.qvel[cd:cd + 6] = [0, slide[1] * speed, 0, 0, 0, 0]
         # step1 = positions, velocities and sensors for the current state, step2 integrates after ctrl is set
         mujoco.mj_step1(model, data)
         truth = truth_eval_only(data)  # logged only
@@ -309,6 +317,7 @@ if __name__ == "__main__":
     ap.add_argument("--cam-noise", type=float, default=1.0)
     ap.add_argument("--push", action="store_true", help="40 N shove on the wrist while carrying the cube")
     ap.add_argument("--nudge", action="store_true", help="move the cube 3 cm while the arm approaches")
+    ap.add_argument("--slide", action="store_true", help="slide the cube about 5 cm sideways along the table while the arm approaches")
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
@@ -317,6 +326,8 @@ if __name__ == "__main__":
         cfg["push"] = ("transfer", 0.3, np.array([0, 40.0, 0]), 0.3)
     if args.nudge:
         cfg["nudge"] = ("approach", 0.4, rng.choice([-1, 1], 2) * 0.03)
+    if args.slide:
+        cfg["slide"] = (0.3, 2.0, 0.03)  # 0.3 s into the approach, driven at 3 cm/s for 2 s, ~4.7 cm after table friction
     model, data = make_trial(rng, motors=True, yaw_range=np.deg2rad(args.yaw))
 
     if args.headless:
