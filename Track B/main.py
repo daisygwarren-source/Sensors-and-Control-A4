@@ -228,6 +228,8 @@ def run_trial(model, data, rng, viewer=None, verbose=False, **cfg):
             if frame != ui["frame"]:
                 ui["frame"] = frame
                 wrist_view(rgb, K, T_base_cam(q), cube, task.phase)
+            # keep the wrist camera window pumping events after the camera turns off at grasp
+            cv2.pollKey()
             viewer.sync()
             # real time when we can keep up, slow motion (no catching up) while the camera is busy
             time.sleep(max(0, (t - ui["t"]) - (time.time() - ui["wall"])))
