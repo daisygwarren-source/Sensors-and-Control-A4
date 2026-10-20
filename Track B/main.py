@@ -221,10 +221,10 @@ def run_trial(model, data, rng, viewer=None, verbose=False, **cfg):
         if viewer is not None and k % 8 == 0:
             if not viewer.is_running():
                 break
-            draw(viewer, robot, cube, p_des)
+            draw(viewer, robot, cube if task.camera_on else None, p_des)
             if t - ui["text"] > 0.5 or task.phase != ui["phase"]:
                 ui["text"], ui["phase"] = t, task.phase
-                status(viewer, task.phase, cube, cube_kf, truth[2], d)
+                status(viewer, task.phase, cube, cube_kf, truth[2], d, None if task.camera_on else res.get("est_err"))
             if frame != ui["frame"]:
                 ui["frame"] = frame
                 wrist_view(rgb, K, T_base_cam(q), cube, task.phase)
@@ -266,14 +266,20 @@ def draw(viewer, robot, cube, p_des):
         scn.ngeom += 1
 
 
-def status(viewer, phase, cube, cube_kf, cube_true, d):
+def status(viewer, phase, cube, cube_kf, cube_true, d, grasp_err=None):
     # set_texts waits for a viewer frame, so this only runs a couple of times a second
+    # grasp_err given = camera off since grasp: the cube KF is frozen and the true cube now moves with the gripper
     left, right = ["phase", "joint disturbance est, max |d| (rad/s^2)"], [phase, f"{np.abs(d).max():.2f}"]
     if cube is not None:
         s = 1000 * np.sqrt(np.diag(cube_kf.P)[:3])
-        left += ["cube est x y z (mm)", "1 sigma (mm)", "truth, eval only (mm)", "error (mm)"]
-        right += [" ".join(f"{1000 * c:7.1f}" for c in cube), " ".join(f"{c:7.2f}" for c in s),
-                  " ".join(f"{1000 * c:7.1f}" for c in cube_true), f"{1000 * np.linalg.norm(cube - cube_true):.2f}"]
+        est, sig = " ".join(f"{1000 * c:7.1f}" for c in cube), " ".join(f"{c:7.2f}" for c in s)
+        if grasp_err is None:
+            left += ["cube est x y z (mm)", "1 sigma (mm)", "truth, eval only (mm)", "error (mm)"]
+            right += [est, sig, " ".join(f"{1000 * c:7.1f}" for c in cube_true),
+                      f"{1000 * np.linalg.norm(cube - cube_true):.2f}"]
+        else:
+            left += ["cube KF stopped at grasp, last est (mm)", "1 sigma (mm)", "error at grasp, eval only (mm)"]
+            right += [est, sig, f"{1000 * grasp_err:.2f}"]
     viewer.set_texts((None, mujoco.mjtGridPos.mjGRID_TOPLEFT, "\n".join(left), "\n".join(right)))
 
 
