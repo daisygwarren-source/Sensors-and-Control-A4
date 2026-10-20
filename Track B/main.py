@@ -122,7 +122,7 @@ def run_trial(model, data, rng, viewer=None, verbose=False, **cfg):
     yaws, n_meas, n_rej, streak, nudged = [], 0, 0, 0, False
     log, res = defaultdict(list), dict(lifted=False, placed=False, events={})
     rgb, cube, t_end, frame = None, None, None, -1
-    ui = dict(text=-1.0, phase=None, frame=-1, t=0.0, wall=time.time())
+    ui = dict(text=-1.0, phase=None, frame=-1, live=-1.0, t=0.0, wall=time.time())
     for k in range(int(cfg["t_max"] / dt)):
         t = k * dt
 
@@ -228,6 +228,11 @@ def run_trial(model, data, rng, viewer=None, verbose=False, **cfg):
             if frame != ui["frame"]:
                 ui["frame"] = frame
                 wrist_view(rgb, K, T_base_cam(q), cube, task.phase)
+            elif not task.camera_on and t - ui["live"] >= CAM_DT:
+                # display only from grasp on, the pipeline has stopped using the camera and nothing here reaches the cube KF
+                ui["live"] = t
+                renderer.update_scene(data, camera="wrist_cam")
+                wrist_view(renderer.render(), K, T_base_cam(q), None, f"{task.phase}, display only")
             # keep the wrist camera window pumping events after the camera turns off at grasp
             cv2.pollKey()
             viewer.sync()
@@ -283,7 +288,8 @@ def wrist_view(rgb, K, T_bc, cube, phase):
         if P[2] > 0:
             u, v = project(K, P[:3])
             cv2.drawMarker(img, (int(u), int(v)), (0, 255, 0), cv2.MARKER_CROSS, 24, 2)
-    cv2.putText(img, f"{phase}  (yellow: red mask, green: cube KF estimate)", (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
+    legend = "yellow: red mask, green: cube KF estimate" if cube is not None else "yellow: red mask"
+    cv2.putText(img, f"{phase}  ({legend})", (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
                 0.55, (255, 255, 255), 2)
     cv2.imshow("wrist camera", img)
     cv2.waitKey(1)
