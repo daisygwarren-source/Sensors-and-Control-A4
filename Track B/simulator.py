@@ -14,11 +14,12 @@ TABLE_POS = np.array([0.5, 0.0, 0.0])   # table centre (x forward of robot base)
 TABLE_HALF = np.array([0.3, 0.4, 0.02])  # half-sizes of the tabletop slab
 TABLE_TOP_Z = 0.0 + 2 * TABLE_HALF[2]    # tabletop sits on the floor -> top at z=0.04
 OBJ_HALF = 0.02                          # 4 cm cube
+DROP_XY = np.array([0.4, 0.3])           # drop-off zone centre (world), a fixed part of the cell
 ARM_JOINTS = ["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
               "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"]
  
  
-def build(object_xy=(0.5, 0.0)) -> mujoco.MjSpec:
+def build(object_xy=(0.5, 0.0), object_yaw=0.0, motors=False) -> mujoco.MjSpec:
     spec = mujoco.MjSpec.from_file(str(UR5E_XML))
     spec.option.cone = mujoco.mjtCone.mjCONE_ELLIPTIC  # gripper model expects these
     spec.option.impratio = 10
@@ -56,15 +57,24 @@ def build(object_xy=(0.5, 0.0)) -> mujoco.MjSpec:
  
     # --- Target object (free body, position randomised per trial) ----------
     obj = world.add_body(name="target",
-                         pos=[object_xy[0], object_xy[1], TABLE_TOP_Z + OBJ_HALF + 0.001])
+                         pos=[object_xy[0], object_xy[1], TABLE_TOP_Z + OBJ_HALF + 0.001],
+                         quat=[np.cos(object_yaw / 2), 0, 0, np.sin(object_yaw / 2)])
     obj.add_freejoint(name="target_free")
     obj.add_geom(name="target_geom", type=mujoco.mjtGeom.mjGEOM_BOX, size=[OBJ_HALF] * 3,
                  rgba=[0.9, 0.1, 0.1, 1], mass=0.05, friction=[1.0, 0.01, 0.001])
  
     # --- Drop-off zone (visual only) --------------------------------------
     world.add_geom(name="drop_zone", type=mujoco.mjtGeom.mjGEOM_CYLINDER, size=[0.06, 0.001, 0],
-                   pos=[0.4, 0.3, TABLE_TOP_Z + 0.001], rgba=[0.1, 0.8, 0.1, 0.5],
+                   pos=[*DROP_XY, TABLE_TOP_Z + 0.001], rgba=[0.1, 0.8, 0.1, 0.5],
                    contype=0, conaffinity=0)
+
+    # torque motors instead of the menagerie position servos, same torque limits
+    if motors:
+        for j in ARM_JOINTS:
+            act = spec.actuator(j.replace("_joint", ""))
+            limit = list(act.forcerange)
+            act.set_to_motor()
+            act.ctrlrange = limit
     return spec
  
  

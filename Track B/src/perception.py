@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import numpy as np
 import cv2
 
@@ -48,11 +50,17 @@ def transform(T, P):
     return P @ T[:3, :3].T + T[:3, 3]
 
 
+@lru_cache
+def _wave(h, w):
+    v, u = np.mgrid[0:h, 0:w]
+    return np.sin(2 * np.pi * u / w), np.sin(2 * np.pi * v / h)
+
+
 def d435_noise(rgb, depth, rng, subpixel=0.08, wave=0.002, f_ir=424.0, baseline=0.05, edge_drop=0.5, rgb_sigma=3.0):
     h, w = depth.shape
     d = depth + depth ** 2 * subpixel / (f_ir * baseline) * rng.standard_normal((h, w))
-    v, u = np.mgrid[0:h, 0:w]
-    d += wave * np.sin(2 * np.pi * u / w) * np.sin(2 * np.pi * v / h)
+    su, sv = _wave(h, w)
+    d += wave * su * sv
     edges = cv2.dilate((np.abs(cv2.Laplacian(depth, cv2.CV_32F)) > 0.01).astype(np.uint8), np.ones((3, 3), np.uint8))
     d[(edges > 0) & (rng.random((h, w)) < edge_drop)] = 0
     rgb = np.clip(rgb + rng.normal(0, rgb_sigma, rgb.shape), 0, 255).astype(np.uint8)
@@ -79,7 +87,7 @@ def points(sel, depth, K, T_bc):
     return transform(T_bc, backproject(K, u, v, depth[v, u]))
 
 
-def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=3):
+def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=3, with_yaw=False):
     mask = cube_mask(rgb)
     if mask is None or mask[[0, -1]].any() or mask[:, [0, -1]].any():
         return None
@@ -98,7 +106,12 @@ def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=
         top = cube[np.abs(cube[:, 2] - z) < band]
         z = np.median(top[:, 2])
     x, y = np.median(top[:, :2], axis=0)
-    return np.array([x, y, z - half])
+    p = np.array([x, y, z - half])
+    if not with_yaw:
+        return p
+    # top face outline in the base xy plane, yaw is only defined mod 90 deg for a cube
+    a = np.deg2rad(cv2.minAreaRect(top[:, :2].astype(np.float32))[2]) % (np.pi / 2)
+    return p, a - np.pi / 2 if a > np.pi / 4 else a
 
 
 def calibrate(images, pattern=(8, 6), square=0.02, fix_distortion=True):
