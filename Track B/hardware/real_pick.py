@@ -233,7 +233,7 @@ def run_trial(robot, kin, cam, gripper, cfg, args, log, out, n):
         return None
 
     t0 = time.perf_counter()
-    k = 0
+    k, timed, deadline, budget = 0, None, 0.0, 0.0
     while task.phase not in ("done", "fail"):
         t = time.perf_counter() - t0
         phase = task.phase
@@ -280,17 +280,33 @@ def run_trial(robot, kin, cam, gripper, cfg, args, log, out, n):
             pbvs.reset(kf.X[0])
             e = np.ones(6)
             task.t0 = time.perf_counter() - t0
+            timed = None
             print(f"{task.t0:6.2f} s  {task.phase}")
             continue
 
         loop.read()
         q, qd, d = kf.X
-        p_now = kin.tcp(q)[0]
+        p_now, R_now, _ = kin.tcp(q)
         at = np.linalg.norm(e[:3]) < 0.005 and np.linalg.norm(e[3:]) < 0.05 and np.abs(q - q_ref).max() < 0.01
         p_des, R_des, v_max = task(t, at, cube, R, 0.5 * args.v_max)
         if task.phase != phase:
             print(f"{t:6.2f} s  {task.phase}")
         p_t = p_des + [0, 0, args.hover if phase != "home" else 0.0]
+        if phase != timed:
+            # each moving phase gets time for its distance at well under the slowest tool speed seen (~5 mm/s
+            # straight up at the joint cap). running out means the target is out of reach or near a singularity,
+            # where PBVS only creeps and `at` never comes
+            timed = phase
+            budget = (15 + np.linalg.norm(p_t - p_now) / min(0.003, 0.5 * args.v_max)
+                      + np.linalg.norm(rot_error(R_des, R_now)) / min(0.02, 0.5 * args.w_max))
+            deadline = t + budget
+        elif t > deadline:
+            fail = f"{phase} not finished in {budget:.0f} s, target {np.round(p_t, 3)} out of reach or near a singularity"
+            res.setdefault("failed", fail)
+            print(f"  FAILED: {fail}. The arm stops where it is"
+                  + (", still holding the object" if phase in ("lift", "transfer", "lower") else ""))
+            task.go("fail", t)
+            break
         # safety, every cycle, before anything is sent. targets stay above the object's centre height except the
         # descent onto it; the TCP itself never goes within 5 mm of the table
         z_min = table_z + 0.005 if phase == "descend" else table_z + half - 0.01
