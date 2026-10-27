@@ -67,15 +67,20 @@ def d435_noise(rgb, depth, rng, subpixel=0.08, wave=0.002, f_ir=424.0, baseline=
     return rgb, np.round(d, 3)
 
 
-def red_mask(rgb):
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-    lo = cv2.inRange(hsv, (0, 150, 50), (10, 255, 255))
-    hi = cv2.inRange(hsv, (170, 150, 50), (180, 255, 255))
-    return lo | hi
+RED = [[(0, 150, 50), (10, 255, 255)], [(170, 150, 50), (180, 255, 255)]]
 
 
-def cube_mask(rgb):
-    m = cv2.morphologyEx(red_mask(rgb), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+def red_mask(rgb, hsv=None):
+    # hsv: list of [lo, hi] ranges in OpenCV units (H 0-180), tuned for the real object; default the sim cube's red
+    img = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    m = np.zeros(rgb.shape[:2], np.uint8)
+    for lo, hi in hsv or RED:
+        m |= cv2.inRange(img, np.array(lo, np.uint8), np.array(hi, np.uint8))
+    return m
+
+
+def cube_mask(rgb, hsv=None):
+    m = cv2.morphologyEx(red_mask(rgb, hsv), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     n, labels, stats, _ = cv2.connectedComponentsWithStats(m)
     if n < 2:
         return None
@@ -87,8 +92,8 @@ def points(sel, depth, K, T_bc):
     return transform(T_bc, backproject(K, u, v, depth[v, u]))
 
 
-def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=3, with_yaw=False):
-    mask = cube_mask(rgb)
+def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=3, with_yaw=False, hsv=None):
+    mask = cube_mask(rgb, hsv)
     if mask is None or mask[[0, -1]].any() or mask[:, [0, -1]].any():
         return None
     m = mask.astype(np.uint8)

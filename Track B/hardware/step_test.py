@@ -62,7 +62,7 @@ if __name__ == "__main__":
     path = args.out / f"step_j{args.joint}_v{args.speed:g}_a{args.accel:g}_{datetime.now():%Y%m%d_%H%M%S}.npz"
     with open(path, "xb") as f:
         np.savez(f, t=t, cmd=cmd, q=q, qd=qd, joint=args.joint, speed=args.speed,
-                 accel=args.accel, hold=args.hold, rate=rate)
+                 accel=args.accel, hold=args.hold, rate=rate, sim=args.sim)
 
     j = args.joint
     dq = np.rad2deg(q[:, j] - q[0, j])

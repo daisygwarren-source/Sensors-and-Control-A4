@@ -14,6 +14,8 @@ Uses localisation statistics measured in eval_perception.py.
 
 import numpy as np
 
+from src.model import N, TAU_MIN, c2d, c2d_noise
+
 
 class KalmanFilter3D:
     def __init__(self, dt=0.02, constant_velocity=True, q_pos=1e-6):
@@ -165,6 +167,54 @@ class JointKF:
     @property
     def sigma(self):
         return np.sqrt(np.diag(self.P))
+
+
+class JointVelKF:
+    # real UR3e under speedJ. per joint x = [q, qd, d] with qd' = (u + d - qd) / tau: u is the commanded joint
+    # velocity, d an input velocity offset the lag model misses (rad/s). F, G by ZOH, Q by Van Loan from white noise
+    # on qd' (sigma_a, unmodelled accel) and d' (sigma_d, drift of d). tau differs per joint, so F, G, Q, P are per
+    # joint, P is 6 x 3 x 3, X is 3 x 6 like JointKF. measures q, or [q, qd] if sigma_qd is given (y = r_[q, qd]).
+    # delay: whole control periods between sending u and the joint acting on it. sigma_a, sigma_d keep the estimator
+    # (~-30 rad/s) well clear of the 100 Hz rate, so qd and d estimate noise doesn't hit the controller's rate limit
+    def __init__(self, q0, dt, tau, sigma_q, sigma_qd=None, sigma_a=0.002, sigma_d=0.002, delay=0):
+        F, G, Q = [], [], []
+        for t in np.maximum(np.broadcast_to(np.asarray(tau, float), N), TAU_MIN):
+            A = np.array([[0, 1, 0], [0, -1 / t, 1 / t], [0, 0, 0]])
+            Fj, Gj = c2d(A, np.array([[0], [1 / t], [0]]), dt)
+            F.append(Fj)
+            G.append(Gj[:, 0])
+            Q.append(c2d_noise(A, np.diag([0, sigma_a**2, sigma_d**2]), dt))
+        self.F, self.G, self.Q = np.array(F), np.array(G), np.array(Q)
+        sig = [np.broadcast_to(np.asarray(sigma_q, float), N)]
+        if sigma_qd is not None:
+            sig.append(np.broadcast_to(np.asarray(sigma_qd, float), N))
+        # a quantised or perfect reading still gets a small R so S stays invertible
+        self.R = np.array([np.diag(np.maximum(s, 1e-7) ** 2) for s in np.array(sig).T])
+        self.H = np.eye(3)[:len(sig)]
+        self.X = np.vstack([q0, np.zeros(N), np.zeros(N)])
+        self.P = np.array([np.diag([r[0, 0], 1e-4, 1e-4]) for r in self.R])
+        self.delay = np.broadcast_to(np.asarray(delay, int), N)
+        self.u_sent = np.zeros((self.delay.max() + 1, N))
+
+    def predict(self, u):
+        self.u_sent = np.roll(self.u_sent, 1, axis=0)
+        self.u_sent[0] = u
+        u = self.u_sent[self.delay, np.arange(N)]
+        self.X = np.einsum("jab,bj->aj", self.F, self.X) + self.G.T * u
+        self.P = self.F @ self.P @ self.F.transpose(0, 2, 1) + self.Q
+
+    def update(self, y):
+        PH = self.P @ self.H.T
+        K = PH @ np.linalg.inv(self.H @ PH + self.R)
+        v = np.reshape(y, (len(self.H), N)) - self.H @ self.X
+        self.X = self.X + np.einsum("jam,mj->aj", K, v)
+        # Joseph form, keeps P symmetric with an encoder R this small
+        IKH = np.eye(3) - K @ self.H
+        self.P = IKH @ self.P @ IKH.transpose(0, 2, 1) + K @ self.R @ K.transpose(0, 2, 1)
+
+    @property
+    def sigma(self):
+        return np.sqrt(np.diagonal(self.P, axis1=1, axis2=2)).T
 
 
 def controllability_rank():

@@ -1,16 +1,27 @@
 """State-space model of the arm, controllability / observability, and a check of the model against MuJoCo.
+A6 is the real UR3e's velocity-input model, with the lag measured by hardware/fit_steps.py.
 
     python model_analysis.py
+    python model_analysis.py --config C:\\Dev\\University\\41014\\hw-data\\2026-10-28\\config.json
 """
+import argparse
+import json
+from pathlib import Path
+
 import numpy as np
 import mujoco
 from scipy.linalg import solve_discrete_are
 
 from simulator import build
 from main import HOME, CAM_DT
-from src.model import N, joint_model, arm_model, c2d, ctrb, obsv, gramians, pbh, RobotModel
-from src.controller import lqr_design
-from src.estimation import JointKF, KalmanFilter3D
+from src.model import (N, joint_model, arm_model, velocity_joint_model, velocity_arm_model, c2d, ctrb, obsv,
+                       gramians, pbh, RobotModel)
+from src.controller import lqr_design, vel_lqr_design, JointVelLQR
+from src.estimation import JointKF, JointVelKF, KalmanFilter3D
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--config", help="hardware config.json with tau (and td, sigma_q) for A6")
+args = ap.parse_args()
 
 np.set_printoptions(precision=4, suppress=True, linewidth=140)
 dt = 0.002
@@ -90,3 +101,64 @@ for _ in range(200):
     worst = max(worst, np.abs(d.qacc[:N] - np.linalg.solve(Mq, d.ctrl[:N] - h)).max())
 print(f"computed torque, 200 random states, no contact: max |q''_mujoco - v| = {worst:.3g} rad/s^2 "
       "(left over: the finger joints' inertia coupling, which the KF's d state absorbs)")
+
+print("\nA6. real UR3e under speedJ, x = [q, qd], u = commanded joint velocity, qd' = (u - qd) / tau, y = q")
+cfg = json.loads(Path(args.config).read_text()) if args.config else {}
+dtr, u_max, a_max = 0.01, 0.05, 0.1
+tau = np.broadcast_to(np.asarray(cfg.get("tau", 0.2), float), N)
+td = np.round(np.broadcast_to(np.asarray(cfg.get("td", 0.0), float), N) / dtr).astype(int)
+sig_q = np.broadcast_to(np.asarray(cfg.get("sigma_q", 1e-5), float), N)
+print("tau (s) =", tau, "from", args.config or "the starter sim's own lag (no --config given)")
+A1, B1, C1 = velocity_joint_model(tau[5])
+Ad1, Bd1 = c2d(A1, B1, dtr)
+print("wrist 3: A =\n", A1, "\nB =", B1.ravel(), " C =", C1.ravel())
+print("ZOH, dt = 10 ms:\nAd =\n", Ad1, "\nBd =", Bd1.ravel())
+Av, Bv, Cv = velocity_arm_model(tau)
+print("all six joints: rank ctrb =", np.linalg.matrix_rank(ctrb(Av, Bv)), "of 12;  rank obsv with C = q:",
+      np.linalg.matrix_rank(obsv(Av, Cv)), ", with C = [q, qd]:", np.linalg.matrix_rank(obsv(Av, np.eye(2 * N))))
+for lam, rc, ro in pbh(Av, Bv, Cv):
+    print(f"PBH at eigenvalue {lam.real:g}: rank[lI-A, B] = {rc}, rank[lI-A; C] = {ro}")
+lag = tau < 2 * dtr
+print(f"joints with tau < 2 control periods (lag negligible, model reduces to qd = u): {np.flatnonzero(lag).tolist()}")
+kf = JointVelKF(np.zeros(N), dtr, tau, sig_q, delay=td)
+F, G = kf.F[5], kf.G[5][:, None]
+print("joint KF x = [q, qd, d], qd' = (u + d - qd) / tau: rank obsv from q =",
+      np.linalg.matrix_rank(obsv(F, np.eye(3)[:1])), ", from [q, qd] =", np.linalg.matrix_rank(obsv(F, np.eye(3)[:2])),
+      "of 3; rank ctrb from u =", np.linalg.matrix_rank(ctrb(F, G)), "of 3 (d is a disturbance, cancelled by u - d)")
+lqr = JointVelLQR(dtr, tau, u_max, a_max)
+print("closed-loop poles s = ln(z) / dt, per joint (controller | estimator, steady-state KF from q):")
+for j in range(N):
+    Al, Bl, K = vel_lqr_design(dtr, lqr.tau[j])
+    pc = np.log(np.linalg.eigvals(Al - Bl @ K).astype(complex)) / dtr
+    H = np.eye(3)[:1]
+    Pp = solve_discrete_are(kf.F[j].T, H.T, kf.Q[j], kf.R[j])
+    L = Pp @ H.T / (H @ Pp @ H.T + kf.R[j])
+    pe = np.log(np.linalg.eigvals((np.eye(3) - L @ H) @ kf.F[j]).astype(complex)) / dtr
+    print(f"  joint {j}: K = {K.ravel()}  controller {np.round(pc, 2)}  estimator {np.round(pe, 1)}")
+
+# closed loop on the model alone: exact discrete lag plant (plus the measured dead time), encoder noise, KF + LQR
+rng = np.random.default_rng(0)
+plant = [c2d(*velocity_joint_model(t)[:2], dtr) for t in lqr.tau]
+Ap, Bp = np.array([p[0] for p in plant]), np.array([p[1][:, 0] for p in plant])
+x, sent, step = np.zeros((N, 2)), np.zeros((td.max() + 1, N)), np.full(N, 0.1)
+kf, lqr = JointVelKF(np.zeros(N), dtr, tau, sig_q, delay=td), JointVelLQR(dtr, tau, u_max, a_max)
+u, qs, us, clip = np.zeros(N), [], [], []
+for k in range(2000):
+    kf.predict(u)
+    kf.update(x[:, 0] + sig_q * rng.standard_normal(N))
+    qh, qdh, dh = kf.X
+    u, c = lqr(qh, qdh, step, 0, 0, dh)
+    sent = np.roll(sent, 1, axis=0)
+    sent[0] = u
+    x = np.einsum("jab,jb->ja", Ap, x) + Bp * sent[td, np.arange(N)][:, None]
+    qs.append(x[:, 0])
+    us.append(u)
+    clip.append(c)
+qs, us = np.array(qs), np.array(us)
+settle = [(np.flatnonzero(np.abs(qs[:, j] - 0.1) > 0.005)[-1] + 1) * dtr for j in range(N)]
+print(f"0.1 rad step in q_ref on every joint, 20 s, u_max {u_max} rad/s, a_max {a_max} rad/s^2:")
+print("  peak |u| (rad/s)  ", np.abs(us).max(0).round(4), "-> under u_max:", bool((np.abs(us).max(0) < u_max).all()))
+print("  overshoot (mrad)  ", ((qs.max(0) - 0.1) * 1e3).round(2))
+print("  settle to 5 % (s) ", np.round(settle, 2))
+print("  error at 20 s (mrad)", ((qs[-1] - 0.1) * 1e3).round(3))
+print("  clipped cycles (%)", (100 * np.mean(clip, axis=0)).round(1), "(the a_max ramp at the start)")
