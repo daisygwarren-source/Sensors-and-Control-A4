@@ -83,6 +83,20 @@ def noise(path):
     return sq, sqd, flags
 
 
+def is_sim(path):
+    with np.load(path) as d:
+        return "sim" in d.files and bool(d["sim"])
+
+
+def real_only(paths, kind):
+    # a --sim test run saved into the lab's folder must not be fitted together with the real recordings
+    sim = [p for p in paths if is_sim(p)]
+    if sim and len(sim) < len(paths):
+        print(f"ignoring {len(sim)} sim {kind} file(s): {', '.join(p.name for p in sim)}")
+        return [p for p in paths if p not in sim]
+    return paths
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("folder", type=Path)
@@ -90,7 +104,7 @@ if __name__ == "__main__":
     args = ap.parse_args()
     config = args.config or args.folder / "config.json"
 
-    steps = [Step(p) for p in sorted(args.folder.glob("step_*.npz"))]
+    steps = [Step(p) for p in real_only(sorted(args.folder.glob("step_*.npz")), "step")]
     if not steps:
         raise SystemExit(f"no step_*.npz in {args.folder}")
     (args.folder / "fits").mkdir(exist_ok=True)
@@ -124,7 +138,7 @@ if __name__ == "__main__":
     print(f"plots in {args.folder / 'fits'}")
 
     keys = dict(tau=tau, td=td, tau_source=source)
-    joints = sorted(args.folder.glob("joints_*.npz"), key=lambda p: len(np.load(p)["t"]))
+    joints = sorted(real_only(sorted(args.folder.glob("joints_*.npz")), "joints"), key=lambda p: len(np.load(p)["t"]))
     if joints:
         sq, sqd, flags = noise(joints[-1])
         print(f"\nnoise from {joints[-1].name} ({len(np.load(joints[-1])['t'])} samples)")

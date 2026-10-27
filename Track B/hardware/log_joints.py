@@ -51,7 +51,7 @@ if __name__ == "__main__":
     args.out.mkdir(parents=True, exist_ok=True)
     path = args.out / f"joints_{datetime.now():%Y%m%d_%H%M%S}.npz"
     with open(path, "xb") as f:
-        np.savez(f, t=t, q=q, qd=qd, rate=args.rate)
+        np.savez(f, t=t, q=q, qd=qd, rate=args.rate, sim=args.sim)
 
     print(f"\nsaved {path}")
     print(f"{n} samples over {t[-1]:.2f} s, mean rate {(n - 1) / (t[-1] - t[0]):.1f} Hz")
