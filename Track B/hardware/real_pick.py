@@ -51,7 +51,8 @@ class Camera:
         c, z = self.cfg, []
         for _ in range(n):
             f = self.rs.capture()
-            z.append(locate_cube(f.rgb, f.depth_m, self.K, T_bc, c["table_z"], c["half"], with_yaw=True, hsv=c["hsv"]))
+            r = locate_cube(f.rgb, f.depth_m, self.K, T_bc, c["table_z"], c["half"], with_yaw=True, hsv=c["hsv"])
+            z.append(None if r is None else (r[0] - np.array(c.get("loc_offset", [0, 0, 0])), r[1]))
         return z, f.rgb, T_bc
 
 
@@ -81,6 +82,7 @@ class RealPickTask:
         self.phase, self.t0 = phase, t
 
     def __call__(self, t, at, cube, R, slow):
+        cube = np.r_[cube[:2], self.table_z + self.half - 0.006]
         # pbvs error is a step behind, give it time to see the new target
         at = at and t - self.t0 > 0.1
         ph = self.phase
