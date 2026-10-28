@@ -25,7 +25,7 @@ for p in (STARTER, TRACK_B):
 from src.perception import RED
 
 DT = 0.01
-MAX_SPEED = 0.05
+MAX_SPEED = 0.4
 SIM_MODEL = STARTER / "models" / "ur3e_official" / "ur3e_velocity.xml"
 SIM_CONFIG = ROOT / "hw-data" / "sim" / "config.json"
 
