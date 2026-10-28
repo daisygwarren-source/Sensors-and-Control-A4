@@ -291,7 +291,7 @@ def status(viewer, phase, cube, cube_kf, cube_true, d, grasp_err=None):
     viewer.set_texts((None, mujoco.mjtGridPos.mjGRID_TOPLEFT, "\n".join(left), "\n".join(right)))
 
 
-def wrist_view(rgb, K, T_bc, cube, phase, hsv=None):
+def wrist_view(rgb, K, T_bc, cube, phase, hsv=None, wait=True):
     img = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     m = cube_mask(rgb, hsv)
     if m is not None:
@@ -306,7 +306,11 @@ def wrist_view(rgb, K, T_bc, cube, phase, hsv=None):
     cv2.putText(img, f"{phase}  ({legend})", (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
                 0.55, (255, 255, 255), 2)
     cv2.imshow("wrist camera", img)
-    cv2.waitKey(1)
+    # waitKey(1) blocks ~16 ms on Windows (timer resolution): a caller inside a 100 Hz loop polls instead
+    if wait:
+        cv2.waitKey(1)
+    else:
+        cv2.pollKey()
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ import cv2
 from scipy.optimize import least_squares
 from scipy.spatial.transform import Rotation
 
-from real import SIM_PLACEHOLDER, UR3eKinematics, load_config, update_config
+from real import SIM_PLACEHOLDER, UR3eKinematics, find_marker, load_config, marker_detector, update_config
 from src.perception import project
 
 inv = np.linalg.inv
@@ -164,23 +164,20 @@ if __name__ == "__main__":
     cfg = load_config(args.config)
     K = np.array(cfg["K"], float)
     kin = UR3eKinematics()
-    params = cv2.aruco.DetectorParameters()
-    params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
-    detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50), params)
+    detector = marker_detector()
     names, A, uv = [], [], []
     for png in sorted(args.folder.glob("*_rgb.png")):
         pose = png.with_name(png.name.replace("_rgb.png", "_pose.json"))
         if not pose.exists():
             print(f"{png.name}: no pose file, skipped")
             continue
-        corners, ids, _ = detector.detectMarkers(cv2.imread(str(png), cv2.IMREAD_GRAYSCALE))
-        hit = [c for c, i in zip(corners, [] if ids is None else ids.ravel()) if i == 0]
-        if not hit:
+        hit = find_marker(detector, cv2.imread(str(png), cv2.IMREAD_GRAYSCALE))
+        if hit is None:
             print(f"{png.name}: marker 0 not found, skipped")
             continue
         names.append(png.name[:3])
         A.append(kin.T_base_tool0(np.array(load_config(pose)["q"])))
-        uv.append(hit[0].reshape(4, 2).astype(float))
+        uv.append(hit)
     if len(A) < 3:
         raise SystemExit(f"marker found in {len(A)} captures, need at least 3")
     turn = max(np.rad2deg(np.linalg.norm(to_p(inv(Ai) @ Aj)[:3])) for Ai in A for Aj in A)

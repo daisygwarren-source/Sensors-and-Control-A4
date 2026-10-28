@@ -92,7 +92,10 @@ def points(sel, depth, K, T_bc):
     return transform(T_bc, backproject(K, u, v, depth[v, u]))
 
 
-def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=3, with_yaw=False, hsv=None):
+def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=3, with_yaw=False, hsv=None,
+                top_pct=50):
+    # top_pct: height percentile the top-face band starts from. 50 (the median) suits the sim's wrist camera looking
+    # down; a camera at an angle sees more side face than top, so the hardware's fixed camera starts higher (90)
     mask = cube_mask(rgb, hsv)
     if mask is None or mask[[0, -1]].any() or mask[:, [0, -1]].any():
         return None
@@ -106,7 +109,7 @@ def locate_cube(rgb, depth, K, T_bc, table_z=0.04, half=0.02, band=0.005, erode=
     cube = points(inner & (depth > 0), depth - bias / T_bc[2, 2], K, T_bc)
     if len(cube) < 20:
         return None
-    z = np.percentile(cube[:, 2], 90)
+    z = np.percentile(cube[:, 2], top_pct)
     for _ in range(3):
         top = cube[np.abs(cube[:, 2] - z) < band]
         z = np.median(top[:, 2])
