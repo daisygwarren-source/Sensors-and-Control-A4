@@ -186,6 +186,8 @@ if __name__ == "__main__":
         table = [name(args.table)]
     if args.corners:
         corners = [name(n) for n in args.corners]
+    if any(n not in caps for n in table + corners):
+        raise SystemExit(f"--table / --corners name a capture that doesn't exist, have {sorted(caps)}")
     if not pairs:
         raise SystemExit(f"no image / truth pairs in {args.folder}")
     frames = {i: load_frame(args.folder / f"{i}_frame.npz") for i, _ in pairs}

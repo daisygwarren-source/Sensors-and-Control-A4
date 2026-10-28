@@ -72,7 +72,7 @@ if __name__ == "__main__":
         q_ref, qd_ref, qdd_ref = reference(q0, delta, args.duration, args.hold, args.repeats)
         sig_qd = cfg["sigma_qd"] if args.use_qd else None
         delay = np.round(np.asarray(cfg.get("td", 0.0)) / DT).astype(int)
-        kf = JointVelKF(q0, DT, tau, cfg["sigma_q"], sig_qd, delay=delay)
+        kf = JointVelKF(q0, DT, tau, cfg["sigma_q"], sig_qd, delay=delay, sigma_t=cfg.get("sigma_t", 0.0))
         lqr = JointVelLQR(DT, tau, args.vmax, args.accel)
         reach = np.abs(delta) + 0.05
         loop = JointLoop(robot, kf, lqr, args.use_qd, not args.no_dhat, max_err=0.1, bounds=(q0 - reach, q0 + reach))

@@ -175,8 +175,11 @@ class JointVelKF:
     # on qd' (sigma_a, unmodelled accel) and d' (sigma_d, drift of d). tau differs per joint, so F, G, Q, P are per
     # joint, P is 6 x 3 x 3, X is 3 x 6 like JointKF. measures q, or [q, qd] if sigma_qd is given (y = r_[q, qd]).
     # delay: whole control periods between sending u and the joint acting on it. sigma_a, sigma_d keep the estimator
-    # (~-30 rad/s) well clear of the 100 Hz rate, so qd and d estimate noise doesn't hit the controller's rate limit
-    def __init__(self, q0, dt, tau, sigma_q, sigma_qd=None, sigma_a=0.002, sigma_d=0.002, delay=0):
+    # (~-30 rad/s) well clear of the 100 Hz rate, so qd and d estimate noise doesn't hit the controller's rate limit.
+    # sigma_t: timing noise of a reading (s). one taken sigma_t off its nominal time is off by qd * sigma_t, so q's
+    # variance grows with speed: ~0.9 ms on the UR3e (RTDE's 500 Hz sample is 0-2 ms old, plus loop jitter; the
+    # 28 Oct picks' innovations grew 0.93 ms x |qd|). 0 treats q as exact in time
+    def __init__(self, q0, dt, tau, sigma_q, sigma_qd=None, sigma_a=0.002, sigma_d=0.002, delay=0, sigma_t=0.0):
         F, G, Q = [], [], []
         for t in np.maximum(np.broadcast_to(np.asarray(tau, float), N), TAU_MIN):
             A = np.array([[0, 1, 0], [0, -1 / t, 1 / t], [0, 0, 0]])
@@ -195,6 +198,7 @@ class JointVelKF:
         self.P = np.array([np.diag([r[0, 0], 1e-4, 1e-4]) for r in self.R])
         self.delay = np.broadcast_to(np.asarray(delay, int), N)
         self.u_sent = np.zeros((self.delay.max() + 1, N))
+        self.sigma_t = sigma_t
 
     def predict(self, u):
         self.u_sent = np.roll(self.u_sent, 1, axis=0)
@@ -204,13 +208,15 @@ class JointVelKF:
         self.P = self.F @ self.P @ self.F.transpose(0, 2, 1) + self.Q
 
     def update(self, y):
+        R = self.R.copy()
+        R[:, 0, 0] += (self.sigma_t * self.X[1]) ** 2
         PH = self.P @ self.H.T
-        K = PH @ np.linalg.inv(self.H @ PH + self.R)
+        K = PH @ np.linalg.inv(self.H @ PH + R)
         v = np.reshape(y, (len(self.H), N)) - self.H @ self.X
         self.X = self.X + np.einsum("jam,mj->aj", K, v)
         # Joseph form, keeps P symmetric with an encoder R this small
         IKH = np.eye(3) - K @ self.H
-        self.P = IKH @ self.P @ IKH.transpose(0, 2, 1) + K @ self.R @ K.transpose(0, 2, 1)
+        self.P = IKH @ self.P @ IKH.transpose(0, 2, 1) + K @ R @ K.transpose(0, 2, 1)
 
     @property
     def sigma(self):

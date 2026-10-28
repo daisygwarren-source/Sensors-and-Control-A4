@@ -21,7 +21,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("folder", type=Path)
     ap.add_argument("--config", type=Path, required=True)
-    ap.add_argument("--marker", type=float, default=0.100, help="marker size (outer black edge), m")
+    ap.add_argument("--marker", type=float, default=0.100,
+                    help="marker size (outer black edge), m: measure the print. PnP's distance scales with it, so 1 mm "
+                         "off on 100 mm is ~7 mm at 0.7 m")
     ap.add_argument("--pairs", type=int, nargs="+", help="image, touch, image, touch, ... (default: the roles)")
     args = ap.parse_args()
 

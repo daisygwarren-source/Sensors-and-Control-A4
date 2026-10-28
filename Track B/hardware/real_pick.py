@@ -36,6 +36,9 @@ from src.perception import locate_cube, project
 NEEDED = ["tau", "sigma_q", "K", "mount", "T_tool0_tcp", "look_q", "table_z", "half", "object_width", "hsv",
           "workspace", "grip_time"]
 W, H = 640, 480
+# (UR3e, --sim) defaults. the UR3e ran the first on 28 Oct; at them the sim's ~0.2 s joint lag carries the TCP ~1 cm
+# past the grasp height while the arm stops to grip, into the table guard, so --sim keeps the earlier slow ones
+SPEEDS = dict(accel=(0.5, 0.1), v_max=(0.1, 0.02), w_max=(0.5, 0.1), acc=(0.2, 0.05), alpha=(1.0, 0.2))
 
 
 class Camera:
@@ -273,7 +276,7 @@ def run_trial(robot, kin, cam, gripper, cfg, args, log, out, n):
     tau = np.broadcast_to(np.asarray(cfg["tau"], float), 6)
     q0 = robot.get_joint_positions()
     kf = JointVelKF(q0, DT, tau, cfg["sigma_q"], cfg["sigma_qd"] if args.use_qd else None,
-                    delay=np.round(np.asarray(cfg.get("td", 0.0)) / DT).astype(int))
+                    delay=np.round(np.asarray(cfg.get("td", 0.0)) / DT).astype(int), sigma_t=cfg.get("sigma_t", 0.0))
     lqr = JointVelLQR(DT, tau, args.vmax, args.accel)
     loop = JointLoop(robot, kf, lqr, args.use_qd, True, max_err=0.1)
     pbvs = PBVS(kin, DT, q0, v_max=args.v_max, w_max=args.w_max, acc=args.acc, alpha=args.alpha,
@@ -527,11 +530,11 @@ if __name__ == "__main__":
                     help="m added to every target: 0.05 dry run (0.10 is past the UR3e's reach), 0 real pick")
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--vmax", type=float, default=MAX_SPEED, help=f"joint speed limit, rad/s, at most {MAX_SPEED}")
-    ap.add_argument("--accel", type=float, default=0.5, help="speedJ acceleration and the LQR's rate limit, rad/s^2")
-    ap.add_argument("--v-max", type=float, default=0.1, help="PBVS tool speed, m/s")
-    ap.add_argument("--w-max", type=float, default=0.5, help="PBVS tool rotation speed, rad/s")
-    ap.add_argument("--acc", type=float, default=0.2, help="PBVS tool acceleration, m/s^2")
-    ap.add_argument("--alpha", type=float, default=1.0, help="PBVS tool angular acceleration, rad/s^2")
+    ap.add_argument("--accel", type=float, help="speedJ acceleration and the LQR's rate limit, rad/s^2 (0.5, --sim 0.1)")
+    ap.add_argument("--v-max", type=float, help="PBVS tool speed, m/s (0.1, --sim 0.02)")
+    ap.add_argument("--w-max", type=float, help="PBVS tool rotation speed, rad/s (0.5, --sim 0.1)")
+    ap.add_argument("--acc", type=float, help="PBVS tool acceleration, m/s^2 (0.2, --sim 0.05)")
+    ap.add_argument("--alpha", type=float, help="PBVS tool angular acceleration, rad/s^2 (1.0, --sim 0.2)")
     ap.add_argument("--pre", type=float, default=0.10, help="refine height above the object, m (raised if needed)")
     ap.add_argument("--min-depth", type=float, default=0.30, help="closest the D435 should look, m")
     ap.add_argument("--n-look", type=int, default=8, help="frames per look")
@@ -549,6 +552,9 @@ if __name__ == "__main__":
                          "alone ran at 72-90 Hz on the lab laptop (28 Oct logs)")
     ap.add_argument("--viewer", action="store_true", help="MuJoCo viewer with --sim")
     args = ap.parse_args()
+    for key, (ur3e, sim) in SPEEDS.items():
+        if getattr(args, key) is None:
+            setattr(args, key, sim if args.sim else ur3e)
     check_args(ap, args)
     if not 0 < args.vmax <= MAX_SPEED:
         ap.error(f"--vmax must be > 0 and at most {MAX_SPEED}")
@@ -618,7 +624,8 @@ if __name__ == "__main__":
                         if not args.sim:
                             input(f"the arm is {np.abs(q - look_q).max():.3f} rad from look_q: Enter moves it "
                                   f"there in {T:.0f} s, lowest TCP z {low:.3f} m (Ctrl+C to stop) ")
-                        move = JointLoop(robot, JointVelKF(q, DT, tau, cfg["sigma_q"], delay=delay),
+                        move = JointLoop(robot, JointVelKF(q, DT, tau, cfg["sigma_q"], delay=delay,
+                                                           sigma_t=cfg.get("sigma_t", 0.0)),
                                          JointVelLQR(DT, tau, args.vmax, args.accel))
                         for r in zip(*path):
                             move.step(*r)
