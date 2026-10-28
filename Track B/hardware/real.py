@@ -179,12 +179,30 @@ class Abort(Exception):
 class JointLoop:
     # one 100 Hz cycle on the arm: read encoders, KF predict with the last command then update, LQR on the estimate,
     # send. set_joint_velocity holds the pace. the tracking and joint-bounds checks run before anything is sent
-    def __init__(self, robot, kf, lqr, use_qd=False, use_dhat=True, max_err=0.1, bounds=None):
+    def __init__(self, robot, kf, lqr, use_qd=False, use_dhat=True, max_err=0.1, bounds=None, stale=0.05):
         self.robot, self.kf, self.lqr = robot, kf, lqr
         self.use_qd, self.use_dhat, self.max_err, self.bounds = use_qd, use_dhat, max_err, bounds
         self.q = self.qd = None
+        self.stale, self.stamp, self.seen = stale, None, None
+
+    def check_link(self):
+        # RealUR3e only. when ur_rtde's receive thread dies ("End of file") getActualQ() keeps returning the last
+        # reading, so the tracking, bounds and table checks never trip. data comes at 500 Hz, so a live link moves
+        # the robot's timestamp between any two reads; stale s without a new one means the readings are frozen
+        r = getattr(self.robot, "rtde_r", None)
+        if r is None:
+            return
+        now, stamp = time.perf_counter(), r.getTimestamp()
+        if self.stamp is None or stamp > self.stamp:
+            self.stamp, self.seen = stamp, now
+        fail = ("RTDE receive connection lost" if not r.isConnected() else
+                f"no new robot data for {now - self.seen:.2f} s" if now - self.seen > self.stale else None)
+        if fail:
+            self.robot.stop()
+            raise Abort(f"{fail}, joint readings frozen: arm stopped")
 
     def read(self):
+        self.check_link()
         self.q, self.qd = self.robot.get_joint_positions(), self.robot.get_joint_velocities()
         self.kf.predict(self.lqr.u)
         self.kf.update(np.r_[self.q, self.qd] if self.use_qd else self.q)
