@@ -39,6 +39,7 @@ W, H = 640, 480
 # (UR3e, --sim) defaults. the UR3e ran the first on 28 Oct; at them the sim's ~0.2 s joint lag carries the TCP ~1 cm
 # past the grasp height while the arm stops to grip, into the table guard, so --sim keeps the earlier slow ones
 SPEEDS = dict(accel=(0.5, 0.1), v_max=(0.1, 0.02), w_max=(0.5, 0.1), acc=(0.2, 0.05), alpha=(1.0, 0.2))
+OPEN_MM = 100.0
 
 
 class Camera:
@@ -408,10 +409,10 @@ def run_trial(robot, kin, cam, gripper, cfg, args, log, out, n):
                     task.go("lift", t)
                 else:
                     fail = f"grasp missed, width {w:.1f} mm"
-                    gripper.open(80.0, args.force)
+                    gripper.open(OPEN_MM, args.force)
                     task.go("retreat", t)
             else:
-                log["grip"].append((t, gripper.open(80.0, args.force)))
+                log["grip"].append((t, gripper.open(OPEN_MM, args.force)))
                 task.go("retreat", t)
             if task.phase in ("fail", "retreat") and fail and not res.get("failed"):
                 res["failed"] = fail
@@ -595,8 +596,8 @@ if __name__ == "__main__":
                 raise Abort("kinematics disagree with get_tcp_pose() (> 5 mm or 2 deg): check the base frame and "
                             "T_tool0_tcp (eval_objects.py's kinematics check)")
             gripper = Gripper(args.ip, cfg["grip_time"])
-            print(f"gripper width {gripper.width():.1f} mm, opening to 80 mm")
-            gripper.open(80.0, args.force)
+            print(f"gripper width {gripper.width():.1f} mm, opening to {OPEN_MM:.0f} mm")
+            gripper.open(OPEN_MM, args.force)
         with contextlib.nullcontext() if args.sim else RealSenseCamera(alignment="colour") as rs:
             # stop the arm before the camera shuts down: the last speedJ keeps it moving until speedStop. the camera
             # thread stops before the RealSense does
