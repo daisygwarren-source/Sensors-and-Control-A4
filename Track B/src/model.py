@@ -4,6 +4,7 @@ from scipy.linalg import expm
 from scipy.spatial.transform import Rotation
 
 N = 6
+TAU_MIN = 1e-3  # a fitted lag of 0 is the limiting case qd = u, kept just above 0 so the lag model stays defined
 
 
 def joint_model():
@@ -20,10 +21,33 @@ def arm_model(n=N):
     return np.kron(A1, np.eye(n)), np.kron(B1, np.eye(n)), np.kron(C1, np.eye(n))
 
 
+def velocity_joint_model(tau):
+    # one joint of the real UR3e: u is the commanded joint velocity (speedJ), the UR's own servo handles gravity and
+    # torque, and the joint velocity follows u with a first-order lag tau: qd' = (u - qd) / tau, encoder gives q
+    A = np.array([[0.0, 1.0], [0.0, -1.0 / tau]])
+    B = np.array([[0.0], [1.0 / tau]])
+    C = np.array([[1.0, 0.0]])
+    return A, B, C
+
+
+def velocity_arm_model(tau):
+    # x = [q, qd] for all joints like arm_model, one tau per joint
+    a = np.diag(1.0 / np.broadcast_to(np.asarray(tau, float), N))
+    A = np.kron([[0, 1], [0, 0]], np.eye(N)) - np.kron([[0, 0], [0, 1]], a)
+    return A, np.kron([[0], [1]], a), np.kron([[1, 0]], np.eye(N))
+
+
 def c2d(A, B, dt):
     n, m = B.shape
     E = expm(np.block([[A, B], [np.zeros((m, n + m))]]) * dt)
     return E[:n, :n], E[:n, n:]
+
+
+def c2d_noise(A, Qc, dt):
+    # Van Loan: covariance a white continuous process noise (spectral density Qc) adds over one step
+    n = A.shape[0]
+    E = expm(np.block([[-A, Qc], [np.zeros((n, n)), A.T]]) * dt)
+    return E[n:, n:].T @ E[:n, n:]
 
 
 def ctrb(A, B):
