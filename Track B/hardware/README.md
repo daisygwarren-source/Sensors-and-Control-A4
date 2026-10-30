@@ -75,6 +75,14 @@ them if the tool, the object or the camera changes (`update_config` in `real.py`
 model comes from `step_test.py` on each joint and 30 s of `log_joints.py`, fitted by `fit_steps.py $d`. The steps
 below overwrite the rest. Every script prints what it saved and which config keys it wrote.
 
+That config was saved with `sigma_t` = 0, but most picks on 30 Oct from 125141 onwards (all except 133640 and the
+134123 dry run) ran with 0.0009. That cut the share of clipped control cycles from 13 to 82% to under 2%. Each pick
+log records the config it used. To pick with it:
+
+```
+python -c "import sys; sys.path.insert(0, 'Track B/hardware'); from real import update_config; update_config(sys.argv[1], sigma_t=0.0009)" $cfg
+```
+
 Before any script moves the arm: panel in Remote mode, area clear, one hand on Ctrl+C and the panel's stop.
 
 ## Run order
@@ -175,10 +183,13 @@ In `Track B/results/hardware/2026-10-30/`:
 - `object_20261030_120339/eval_objects.png`: localisation error against the TCP touches, with the 20 mm camera height
   correction. Raw |xy| error 11.7 mm mean (26.0 mm max). With the offset subtracted, 6.6 mm in-sample and 10.6 mm
   held out.
-- `plots/pick_20261030_124832_trial3_object.png`: a tracking pick where the cube was moved during the approach. The NIS
-  gate rejects the jumps, the filter restarts on the new position, and the arm approaches again (3 times) and picks it.
+- `plots/pick_20261030_124832_trial3_object.png`: a tracking pick where the cube was pushed four times during the
+  approach. The NIS gate rejects 22 measurements, the filter restarts twice, and the arm approaches again (3 times, the
+  limit) and picks it.
 - `plots/pick_20261030_135113_trial1_*.png`: one pick from a 5-of-5 run.
-- `plots/joint_control_20261030_134701_*.png`: Tier 2 joint tracking and the joint KF.
+- `plots/joint_control_20261030_134344_*.png`: Tier 2 baseline, joint tracking and the joint KF. The other Tier 2 runs
+  that day: 134411 without d̂ feedforward, 134633 and 134701 with the measured velocity fed to the KF (σ_qd 1e-4 and
+  1e-3), and 134434, aborted when the RTDE data stopped.
 - `config.json`: the calibration used that day, including `handeye_rms_px` = 0.80, the factory `K` and the camera
   height correction (`T_base_cam_fit`, `T_base_cam_dz` = 0.02).
 
