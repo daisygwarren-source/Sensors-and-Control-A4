@@ -296,9 +296,9 @@ over the runs listed, and that table's `sigma_t (ms)` column shows which runs ha
 
 | Pick mode | σ_t off | σ_t on (0.9 ms) |
 |---|---|---|
-| Stop-and-look, 87 to 88 Hz | 16.3% (123107 trials 1 to 4, 123630, 123755) | 0.2% (125141, 135113, 135546) |
+| Stop-and-look, 87 to 88 Hz | 16.25% (123107 trials 1 to 4, 123630, 123755) | 0.2% (125141, 135113, 135546) |
 | Tracking, 85 to 87 Hz | 29.1% (124107 trials 1 and 2, 124832, 133640 trial 1) | 0.7% (135716) |
-| Tracking, laptop busy, 71 to 75 Hz | 80.1% (133640 trials 2 and 3) | 1.3% (125435) |
+| Tracking, laptop busy, 71 to 75 Hz | 80.05% (133640 trials 2 and 3) | 1.3% (125435) |
 
 **Feeding the robot's measured velocity to the filter (`--use-qd`).** If we trust the reported velocity at
 σ_q̇ = 1e-4 rad/s, the position estimate drifts about 200 to 250 µrad away from the measured angle while the arm
