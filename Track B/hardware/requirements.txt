@@ -9,5 +9,6 @@ ur_rtde==1.6.5
 pyrealsense2==2.59.1.11053
 robot_descriptions==2.0.0
 xacrodoc[mujoco]==2.0.1
+pycurl==7.48.0
 realsense-lab @ git+https://github.com/UTS-RI/UR3_RG2_rosbridge.git@5b18298d6f78ef66a50f35f2d988329a9e91a927
 onRobot @ git+https://github.com/RianPolMacCionaoith/onRobot.git@c6e3e5cdfc869ee39c626c632d8490fa26bae2e8#subdirectory=onRobot

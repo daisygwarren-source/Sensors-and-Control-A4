@@ -201,4 +201,7 @@ if __name__ == "__main__":
     print(f"marker pose implied by each capture: spread RMS {dp:.2f} mm (max {dpm:.2f}), {dr:.3f} deg (max {drm:.3f})")
     name = "T_tool0_cam" if args.mount == "wrist" else "T_base_cam"
     print(f"{name} =\n{np.round(X, 4)}")
-    update_config(args.config, **{name: X, "mount": args.mount, "handeye_rms_px": rms})
+    keys = {name: X, "mount": args.mount, "handeye_rms_px": rms}
+    if name == "T_base_cam":
+        keys.update(T_base_cam_fit=X, T_base_cam_dz=0.0)
+    update_config(args.config, **keys)

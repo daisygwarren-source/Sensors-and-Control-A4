@@ -6,13 +6,15 @@
 
 ## What it does
 
-A robot arm finds a red cube on a table with an RGB-D camera, picks it up and moves it. The cube starts in a new random
-place every trial. We built the system in simulation first, then ran it on the lab's real arm.
+A robot arm finds a coloured cube on a table with an RGB-D camera, picks it up and moves it. The cube starts in a new
+random place every trial. We built the system in simulation first, then ran it on the lab's real arms.
 
 - **Simulation:** a UR5e (MuJoCo Menagerie model) with a Robotiq 2F-85 gripper and a wrist-mounted RGB-D camera, in
-  MuJoCo. The camera adds RealSense D435-style depth noise. The arm carries the cube to a fixed drop zone.
-- **Hardware:** the lab UR3e with an OnRobot RG2 gripper and a RealSense D435 fixed in the cell. The arm lifts the
-  cube and puts it back where it was.
+  MuJoCo, picking a red cube. The camera adds RealSense D435-style depth noise. The arm carries the cube to a fixed
+  drop zone.
+- **Hardware:** a lab UR3e with an OnRobot RG2 gripper and a RealSense camera fixed in the cell, picking a green cube.
+  On 28 Oct this was a D435, and on 30 Oct a D455 on a different UR3e. The arm lifts the cube and puts it back where
+  it was.
 
 Both run the same loop:
 
@@ -85,12 +87,15 @@ Other commands, all from `Track B` (times measured on our PC):
 | `python main.py --cam-noise 10` | 10x depth noise (+/-2 cm wavy depth error) |
 | `python main.py --headless --seed 0` | One trial with no window, about 10 s. Prints each phase, then a result line (`lifted`, `placed`, grasp and estimate errors), and saves `results/seed0_*.png` |
 | `python model_analysis.py` | Part A: discrete model, controllability and observability ranks, PBH tests, closed-loop poles. About 1 s |
-| `python calibrate.py` | Part B: calibrated K against the true K (fx 433.16 against 432.97). Overwrites `K_calib.npy`. About 3 s |
 | `python eval_perception.py` | Part B: FK check, encoder sensitivity, 50 trials at four noise levels (the results table below). About 15 s |
 | `python evaluate.py --study robust --trials 20` | Part E: 10 conditions x 20 trials, all picked and placed. About 2.5 min. Writes `results/eval_robust.md` |
+| `python evaluate.py --study all` | Parts C to E: the robustness table plus the cube filter, LQR, joint KF and d-hat trade-off studies, 20 trials per row. Regenerates every `results/eval_*.md` and `results/tradeoff_*.png` behind the tables in `PIPELINE.md`. About 7 min |
+| `python calibrate.py` | Part B: calibrated K against the true K (fx 433.16 against 432.97). Overwrites `K_calib.npy`. About 3 s |
 
 `main.py --headless`, `calibrate.py` and `evaluate.py` overwrite committed files in `results/` and `K_calib.npy`.
-`git restore .` puts them back.
+`git restore .` puts them back. Run `calibrate.py` last, or restore `K_calib.npy` after it: every trial reads that file,
+and the K that `calibrate.py` writes differs from the committed one in the fourth decimal. That is enough to move the
+`evaluate.py` tables by up to about 0.15 mm. With the committed file, every `evaluate.py` rerun on our PC gave bit-identical results.
 
 ## Hardware
 
@@ -98,8 +103,11 @@ The UR3e scripts need the lab robot, the camera and the lecturer's starter code.
 [`Track B/hardware/README.md`](Track%20B/hardware/README.md). On 30 Oct, 29 of 32 pick trials succeeded
 ([`tier3_results.md`](Track%20B/results/hardware/2026-10-30/plots/tier3_results.md)): 15 of 17 with the camera
 looking only while the arm is stopped, and 14 of 15 with the camera also tracking the cube while the arm moves. Two
-failures were the script refusing a cube estimate outside the arm's reach or the work area before moving, and one was
-a `UR speedJ command failed` error from the robot interface.
+failures were the script refusing a cube estimate outside the arm's reach or the work area before moving. In the
+third, the cube was moved during the descent, after the last camera check. A finger hit it, the robot made a
+protective stop (C157), and the gripper never closed (it read 101 mm). The grasp check at the time still counted
+that as holding, so the next motion command failed (`UR speedJ command failed`). The grasp check now rejects that
+width (see the hardware README).
 
 # Track B perception: calibration and cube localisation
 
