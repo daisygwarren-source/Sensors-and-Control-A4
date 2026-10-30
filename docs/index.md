@@ -23,6 +23,12 @@ depend on the arm. We then ran the same perception, filters and controller on th
 gripper and a RealSense camera fixed in the cell, on 28 Oct (D435) and 30 Oct (D455, on a different UR3e), using the
 lab's starter code for the robot interface [8, 9].
 
+The methods follow the 41014 weekly tutorials [10]: encoder quantisation and sensor models (week 2), camera calibration
+and ArUco pose (week 3), depth images to points in the robot frame (week 4), state-space models, controllability and
+observability (week 5), LQR with integral action and Bryson's rule (week 6), Kalman filters and the NEES consistency
+check (week 7), the separation principle, Gramians and the PBH test (week 8), and visual servoing (week 9). The models,
+noise parameters, gains and evaluation were derived for this project's arms.
+
 - **Simulation:** 200 of 200 randomised picks across 10 conditions: up to 10x camera noise, 14-bit encoders, a 20%
   mass error, 30 N and 40 N pushes, and the cube moved during the approach. Nominal cube estimate error at the grasp:
   0.68 mm mean.
@@ -52,11 +58,11 @@ camera pose to 1.1e-15 (`eval_perception.py`). The camera sits 0.10 m along wris
 along wrist +y. MuJoCo cameras look along -z with y up, so converting to the OpenCV convention flips y and z.
 
 **Hardware.** The camera is fixed in the cell, so the camera pose is one transform, `T_base_cam`, from the hand-eye
-calibration plus a measured 20 mm height correction (Part B). The arm's kinematics come from the Robotics Toolbox UR3e
-model with `start="base"`, which is the UR controller's base frame (the toolbox's default `base_link` is turned 180°
-and flips x and y). `T_tool0_tcp` is the panel's TCP setting, 0.204 m along the flange axis. Every pick checks this
-kinematic model against the robot's own TCP pose and refuses to start if they disagree by more than 5 mm or 2°. Over
-the 30 Oct picks they agreed to 1.3 mm and 0.4° on average, and 3.1 mm and 0.9° at worst.
+calibration plus a measured 20 mm height correction (Part B). The arm's kinematics come from the Robotics Toolbox's UR3e
+model [11] with `start="base"`, which is the UR controller's base frame (the toolbox's default `base_link` is turned
+180° and flips x and y). `T_tool0_tcp` is the panel's TCP setting, 0.204 m along the flange axis. Every pick checks this
+kinematic model against the robot's own TCP pose and refuses to start if they disagree by more than 5 mm or 2°. Over the
+30 Oct picks they agreed to 1.3 mm and 0.4° on average, and 3.1 mm and 0.9° at worst.
 
 ![Kinematic model against the robot's reported TCP during a pick: about 1 to 1.7 mm and 0.3 to 0.5 degrees](figures/hw_pick_kinematics.png)
 
@@ -202,11 +208,11 @@ distortion, which we ignore (see Failures and limitations).
 
 ### Simulation
 
-**Joint KF.** Per joint x = [q, q̇, d], where d is everything computed torque gets wrong (model error, gripper
-reaction, pushes). The measurement noise comes from the encoder: 20-bit quantisation plus 1 LSB of noise,
-σ = LSB × √(1 + 1/12) = 6.2 µrad. The process noise is σ_a = 0.5 rad/s² on the acceleration and σ_d on the
-disturbance's drift, chosen from the study below. With σ_d = 20 the joint NEES is 1.58 against an expected 2, slightly
-conservative.
+**Joint KF.** Per joint x = [q, q̇, d], where d is everything computed torque gets wrong (model error, gripper reaction,
+pushes). The encoders measure only q, so the joint KF is the observer for the unmeasured states q̇ and d, which Part A
+shows are observable from q. The measurement noise comes from the encoder: 20-bit quantisation plus 1 LSB of noise, σ =
+LSB × √(1 + 1/12) = 6.2 µrad. The process noise is σ_a = 0.5 rad/s² on the acceleration and σ_d on the disturbance's
+drift, chosen from the study below. With σ_d = 20 the joint NEES is 1.58 against an expected 2, slightly conservative.
 
 | σ_d | q̇ error (mrad/s) | Joint NEES (expect 2) | Peak tracking outside grasp/lift (mrad) | Peak grasp/lift (mrad) | Torque roughness (%) |
 |---|---|---|---|---|---|
@@ -263,10 +269,10 @@ comes from the few frames before three rejections restart the filter.
 
 ### Hardware
 
-On hardware the joint KF is the velocity-input version, per joint x = [q, q̇, d] with q̇' = (u + d - q̇) / τ. The
-encoder noise σ_q (13 to 19 µrad) comes from 30 s of joint readings at rest on 28 Oct's arm, and was reused on
-30 Oct's. There is no ground truth, so the velocity estimate is checked against the robot's own measured q̇, which the
-filter never sees.
+On hardware the joint KF is the velocity-input version, per joint x = [q, q̇, d] with q̇' = (u + d - q̇) / τ. It again
+observes q̇ and d from the measured q alone. The encoder noise σ_q (13 to 19 µrad) comes from 30 s of joint readings at
+rest on 28 Oct's arm, and was reused on 30 Oct's. There is no ground truth, so the velocity estimate is checked against
+the robot's own measured q̇, which the filter never sees.
 
 ![Joint KF velocity estimate against the robot's measured velocity, and the position residual](figures/hw_tier2_baseline_kf.png)
 
@@ -283,8 +289,10 @@ from cycle to cycle (10.1 to 12.3 ms in Tier 2) and each RTDE reading is 0 to 2 
 at speed is therefore off by q̇ times the timing error. The constant part of that error is absorbed by d̂ (see Part D).
 The varying part is noise the filter didn't model, so it becomes overconfident in fast moves, and its noisy velocity
 and disturbance estimates push the command into the speed and rate limits. The `sigma_t` option (0.9 ms) adds that
-variance. The table shows the share of control cycles where the command was clipped, from each log, averaged over the
-successful picks on 30 Oct. `tier3_results.md` has no σ_t column, so the runs are listed:
+variance. The table shows the share of control cycles where the command was clipped, averaged over the successful
+picks on 30 Oct. Each cell is the mean of the `clipped %` column of
+[`tier3_results.md`](https://github.com/daisygwarren-source/Sensors-and-Control-A4/blob/main/Track%20B/results/hardware/2026-10-30/plots/tier3_results.md)
+over the runs listed, and that table's `sigma_t (ms)` column shows which runs had the option on:
 
 | Pick mode | σ_t off | σ_t on (0.9 ms) |
 |---|---|---|
@@ -488,9 +496,10 @@ noise and the distortion we ignore.
 
 - **The collision on 30 Oct** (run 124107 trial 3). The cube was moved during the descent, after the last camera
   check. A finger hit it, the robot made a protective stop (C157), and the gripper never closed (it read 101 mm). The
-  grasp check at the time only tested that the width was above the target, so it counted 101 mm as holding, and the next
-  motion command failed. The check now also requires the width to be between 5 mm under and 10 mm over the cube's
-  width, which would have caught it.
+  grasp check at the time only tested that the width was more than 5 mm above the grip target (the cube's width minus
+  the `--squeeze`, 10 mm by default), so it counted 101 mm as holding, and the next motion command failed. The check
+  now also requires the width to be less than 10 mm over the cube's width (56 to 71 mm for the 61 mm cube at the
+  default squeeze), which would have caught it.
 - **On hardware the camera stops being used once the descent starts**, because the fingers cover the cube's top face
   and pull the estimate to the visible side. A cube moved during the descent is not seen, which is how the collision
   happened. Each pick also allows at most three re-approaches, and tracking at most three filter restarts.
@@ -563,4 +572,13 @@ prints and how long it takes, and how to reproduce each table on this page. The 
 7. Renishaw / RLS, AksIM absolute encoders in Universal Robots joints, [PDF](https://www.renishaw.com/media/pdf/en/b439965d6aa648e0b5c0044c098c42e3.pdf).
 8. UTS-RI, UR3_RG2_rosbridge (UR3e starter code, robot backends and the RealSense-Lab helpers), [github.com/UTS-RI/UR3_RG2_rosbridge](https://github.com/UTS-RI/UR3_RG2_rosbridge).
 9. onRobot Python driver for the RG2 gripper, [github.com/RianPolMacCionaoith/onRobot](https://github.com/RianPolMacCionaoith/onRobot).
-10. 41014 weekly tutorials adapted for this project: (to add)
+10. UTS 41014 Sensors and Control, weekly tutorial notebooks (Google Colab), 2026:
+    - Week 2, Sensor models and odometry (`Week2_Tutorial_Sensing_Solution.ipynb`): encoders as quantisers, bias against random error, frame chains (the encoder noise model, Part C).
+    - Week 3, Camera calibration and ArUco pose estimation (`41014_Week3_Tutorial_Cameras_and_Visual_Features.ipynb`): checkerboard calibration, reprojection error, marker pose (Part B calibration and hand-eye).
+    - Week 4, Depth processing, RGB-D cameras and LiDAR sensors (`41014_Week4_Depth_and_Range_Sensing_tutorial.ipynb`): depth image to points in the camera frame and then the robot frame, outlier removal (cube localisation, Part B).
+    - Week 5, State-space modelling (`41014_Week5_State_Space_Tutorial.ipynb`): discretisation, controllability and observability rank tests (Part A).
+    - Week 6, LQR trajectory tracking (`41014_Week6_Optimal_Control_Tutorial.ipynb`): LQR, Bryson's rule, integral action (Part D).
+    - Week 7, Observers and the Kalman filter (`41014_Week7_Observers_and_KF_Tutorial.ipynb`): observers, the discrete KF, NEES (Part C).
+    - Week 8, Estimator-based control (`41014_Week8_LQG_Separation_Tutorial.ipynb`): the separation principle, Gramians, the PBH test (Parts A, C and D).
+    - Week 9, Visual servoing (`41014_Week9_Tutorial_Visual_Servoing.ipynb`): IBVS on a UR5 with a wrist camera, PBVS from a marker pose (PBVS, Part D).
+11. P. Corke and J. Haviland, "Not your grandmother's toolbox: the Robotics Toolbox reinvented for Python", IEEE ICRA 2021, [github.com/petercorke/robotics-toolbox-python](https://github.com/petercorke/robotics-toolbox-python) (UR3e kinematics on hardware).

@@ -76,8 +76,8 @@ model comes from `step_test.py` on each joint and 30 s of `log_joints.py`, fitte
 below overwrite the rest. Every script prints what it saved and which config keys it wrote.
 
 That config was saved with `sigma_t` = 0, but most picks on 30 Oct from 125141 onwards (all except 133640 and the
-134123 dry run) ran with 0.0009. That cut the share of clipped control cycles from 13 to 82% to under 2%. Each pick
-log records the config it used. To pick with it:
+134123 dry run) ran with 0.0009 (the `sigma_t (ms)` column of `tier3_results.md`). That cut the share of clipped
+control cycles from 13 to 82% to under 2%. Each pick log records the config it used. To pick with it:
 
 ```
 python -c "import sys; sys.path.insert(0, 'Track B/hardware'); from real import update_config; update_config(sys.argv[1], sigma_t=0.0009)" $cfg
@@ -174,12 +174,13 @@ Joint control alone (Tier 2, Part D): `python "Track B\hardware\real_joint_contr
 
 In `Track B/results/hardware/2026-10-30/`:
 
-- `plots/tier3_results.md`: every trial. 29 of 32 picks succeeded. The successful ones took 24.5 to 43.2 s, with the
-  gripper closing at 59.9 to 61.2 mm on the 61 mm cube. Two failures were cube estimates past the arm's reach or off
-  the work area, refused before moving. In the third (`pick_20261030_124107`, trial 3), the cube was moved during the
-  descent, after the last camera check. A finger hit it, the robot made a protective stop (C157), and the gripper never
-  closed (it read 101 mm). The grasp check at the time counted that as holding, and the next motion command failed
-  (`UR speedJ command failed`). The current check rejects 101 mm (see Limitations).
+- `plots/tier3_results.md`: every trial, with its `sigma_t` and share of clipped control cycles. 29 of 32 picks
+  succeeded. The successful ones took 24.5 to 43.2 s, with the gripper closing at 59.9 to 61.2 mm on the 61 mm cube. Two
+  failures were cube estimates past the arm's reach or off the work area, refused before moving. In the third
+  (`pick_20261030_124107`, trial 3), the cube was moved during the descent, after the last camera check. A finger hit
+  it, the robot made a protective stop (C157), and the gripper never closed (it read 101 mm). The grasp check at the
+  time counted that as holding, and the next motion command failed (`UR speedJ command failed`). The current check
+  rejects 101 mm (see Limitations).
 - `object_20261030_120339/eval_objects.png`: localisation error against the TCP touches, with the 20 mm camera height
   correction. Raw |xy| error 11.7 mm mean (26.0 mm max). With the offset subtracted, 6.6 mm in-sample and 10.6 mm
   held out.

@@ -223,7 +223,7 @@ def tier3(path, out):
 
 def results_table(rows, out):
     head = ["run", "trial", "mode", "success", "time (s)", "looks", "n_meas", "n_rej", "n_skip", "reapproach",
-            "resets", "clipped %", "grip (mm)", "loop (Hz)", "FK - robot max", "note"]
+            "resets", "sigma_t (ms)", "clipped %", "grip (mm)", "loop (Hz)", "FK - robot max", "note"]
     fmt = lambda v, f: "-" if v is None else format(v, f)
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for run, r in rows:
@@ -234,12 +234,13 @@ def results_table(rows, out):
         note = r.get("failed") or (r.get("reason") if r.get("phase") == "interrupted" else "")
         kin = f"{r['kin_mm']:.1f} mm, {r['kin_deg']:.2f} deg" if "kin_mm" in r else "-"
         clip = 100 * r["clipped"] if r.get("clipped") is not None else None
+        sig_t = 1e3 * r["config"].get("sigma_t", 0.0) if "config" in r else None
         loop = fmt(r.get("loop_hz"), ".1f") + (f" (tracking {r['track_hz']:.1f})" if r.get("track_hz") else "")
         lines.append("| " + " | ".join([run, str(r.get("trial")), mode, "yes" if r.get("phase") == "done" else "no",
                                          fmt(r.get("t"), ".1f"), fmt(r.get("looks"), "d"), fmt(r.get("n_meas"), "d"),
                                          fmt(r.get("n_rej"), "d"), fmt(r.get("n_skip"), "d"),
-                                         fmt(r.get("reapproach"), "d"), fmt(r.get("resets"), "d"), fmt(clip, ".0f"),
-                                         fmt(r.get("grip_width"), ".1f"), loop, kin, note]) + " |")
+                                         fmt(r.get("reapproach"), "d"), fmt(r.get("resets"), "d"), fmt(sig_t, ".1f"),
+                                         fmt(clip, ".1f"), fmt(r.get("grip_width"), ".1f"), loop, kin, note]) + " |")
     text = "\n".join(lines)
     print("\n" + text)
     (out / "tier3_results.md").write_text(text + "\n")
