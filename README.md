@@ -1,31 +1,105 @@
-# Sensors-and-Control-A4
-This assessment 
+# Sensors and Control A4: vision-guided pick (Track B)
 
-# Track A, mobile robot:
+41014 Sensors and Control, Assessment 4 integrated project.
 
- visual waypoint navigation. TurtleBot3 with 2D LiDAR and camera
-in MuJoCo. Navigate a room with obstacles using the LiDAR and visually dock to the ArUco-marked
-charging station. Required: state-space model of the platform; EKF fusing wheel-encoder odometry
-with range and bearing, or pose, measurements from the camera; state-feedback or LQR trajectory
-tracker. Constraint: the controller must use the estimated state, never ground truth.
-# Track B, manipulator: 
+**Group 9** (Canvas group "Project 9"): Charlie White, Sarah Gill, Daisy Warren.
 
-Vision-guided pick. The brief names a UR3; this project uses a UR5e (MuJoCo Menagerie model) in MuJoCo with a wrist-mounted RGB-D
-camera. Detect a target object on a tabletop, plan an approach and execute a pick using IBVS or
-PBVS. Required: camera calibration; depth-based object localisation; state-space joint controller;
-observer for unmeasured states. Constraint: object position is randomised between trials and the
-system must demonstrate robustness.
-Own project. Must include, at minimum, a state-space model with controllability and observability
-analysis, at least one calibrated exteroceptive sensor, a Kalman filter or observer, and a feedback
-controller
+## What it does
 
-# Packages 
+A robot arm finds a red cube on a table with an RGB-D camera, picks it up and moves it. The cube starts in a new random
+place every trial. We built the system in simulation first, then ran it on the lab's real arm.
 
-pip install -r "Track B/requirements.txt"
+- **Simulation:** a UR5e (MuJoCo Menagerie model) with a Robotiq 2F-85 gripper and a wrist-mounted RGB-D camera, in
+  MuJoCo. The camera adds RealSense D435-style depth noise. The arm carries the cube to a fixed drop zone.
+- **Hardware:** the lab UR3e with an OnRobot RG2 gripper and a RealSense D435 fixed in the cell. The arm lifts the
+  cube and puts it back where it was.
 
-MuJoCo's viewer is built in (`mujoco.viewer`), so no separate viewer package is needed.
+Both run the same loop:
 
-***Documentation for Mujoco:*** https://mujoco.readthedocs.io/en/stable/programming/simulation.html
+1. Calibrated camera and joint encoders give the cube's position in the robot base frame (`src/perception.py`).
+2. A Kalman filter tracks the cube position and rejects outlier measurements with an NIS gate (`src/estimation.py`).
+3. A Kalman filter per joint estimates position, velocity and a lumped disturbance (`src/estimation.py`).
+4. Position-based visual servoing (PBVS) drives the gripper to the grasp pose, and an LQR with integral action tracks
+   the joint reference (`src/controller.py`). In simulation the LQR output goes through computed torque. On the UR3e
+   it is a joint velocity command.
+5. A state machine runs the task: look, approach, refine, descend, grasp, lift, transfer, lower, release, retreat.
+
+The controller only ever uses estimates. Simulator ground truth is used only to score results, and every function
+that reads it is named `*_eval_only`: `truth_eval_only` and `cube_truth_eval_only` in `Track B/main.py`, and
+`in_base_eval_only` in `Track B/eval_perception.py`. `intrinsics()` in `main.py` (the true camera matrix) is only
+printed by `calibrate.py` for comparison.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `Track B/main.py` | Simulation demo and one full trial (`run_trial`) |
+| `Track B/simulator.py` | MuJoCo scene: UR5e, gripper, wrist camera, table, cube |
+| `Track B/src/` | Perception, estimation (Kalman filters), controller (LQR, PBVS, pick task), state-space model, plots |
+| `Track B/model_analysis.py` | State-space model, controllability and observability (Part A) |
+| `Track B/calibrate.py`, `Track B/eval_perception.py` | Camera calibration and perception evaluation (Part B) |
+| `Track B/evaluate.py` | Randomised trials and trade-off studies (Parts C to E) |
+| `Track B/hardware/` | UR3e scripts, see [`Track B/hardware/README.md`](Track%20B/hardware/README.md) |
+| `Track B/results/` | Tables and plots written by the scripts. `results/hardware/<date>/` holds each lab day's config, logs and plots |
+| `Track B/PIPELINE.md` | Pipeline design notes and the full simulation results tables |
+| `Track B/universal_robots_ur5e/`, `Track B/robotiq_2f85/` | MuJoCo Menagerie models (licences in each folder) |
+
+## Install
+
+Tested on Windows 11 with Python 3.12, in PowerShell:
+
+```
+git clone https://github.com/daisygwarren-source/Sensors-and-Control-A4.git
+cd Sensors-and-Control-A4
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r "Track B\requirements.txt"
+```
+
+If PowerShell blocks `Activate.ps1`, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first, or use
+`.venv\Scripts\activate.bat` in Command Prompt. On Linux or macOS (not tested) use `python3.12 -m venv .venv` and
+`source .venv/bin/activate`. MuJoCo's viewer comes with the `mujoco` package.
+
+## Run
+
+From the repo root, with the environment activated:
+
+```
+cd "Track B"
+python main.py
+```
+
+This opens the MuJoCo viewer and a "wrist camera" window, and runs randomised picks back to back until the viewer is
+closed. In the viewer, the green see-through box is the cube Kalman filter's estimate, the blue dot is the current
+PBVS target, and the top-left text shows the phase, the estimate with its 1 sigma, the true position (evaluation
+only) and the error. The wrist camera window shows the noisy image the pipeline sees, the red mask outline (yellow)
+and the estimate projected back into the image (green cross). The camera phases run at about half real time.
+
+Other commands, all from `Track B` (times measured on our PC):
+
+| Command | What to expect |
+|---|---|
+| `python main.py --yaw 45 --nudge` | Cube turned up to +/-45 deg, then moved 3 cm while the arm approaches. The filter rejects the jump, restarts on the new position and the arm re-targets |
+| `python main.py --slide` | Cube slides about 5 cm sideways along the table during the approach |
+| `python main.py --push` | 40 N shove on the wrist while carrying the cube |
+| `python main.py --cam-noise 10` | 10x depth noise (+/-2 cm wavy depth error) |
+| `python main.py --headless --seed 0` | One trial with no window, about 10 s. Prints each phase, then a result line (`lifted`, `placed`, grasp and estimate errors), and saves `results/seed0_*.png` |
+| `python model_analysis.py` | Part A: discrete model, controllability and observability ranks, PBH tests, closed-loop poles. About 1 s |
+| `python calibrate.py` | Part B: calibrated K against the true K (fx 433.16 against 432.97). Overwrites `K_calib.npy`. About 3 s |
+| `python eval_perception.py` | Part B: FK check, encoder sensitivity, 50 trials at four noise levels (the results table below). About 15 s |
+| `python evaluate.py --study robust --trials 20` | Part E: 10 conditions x 20 trials, all picked and placed. About 2.5 min. Writes `results/eval_robust.md` |
+
+`main.py --headless`, `calibrate.py` and `evaluate.py` overwrite committed files in `results/` and `K_calib.npy`.
+`git restore .` puts them back.
+
+## Hardware
+
+The UR3e scripts need the lab robot, the camera and the lecturer's starter code. Setup and run order are in
+[`Track B/hardware/README.md`](Track%20B/hardware/README.md). On 30 Oct, 29 of 32 pick trials succeeded
+([`tier3_results.md`](Track%20B/results/hardware/2026-10-30/plots/tier3_results.md)): 15 of 17 with the camera
+looking only while the arm is stopped, and 14 of 15 with the camera also tracking the cube while the arm moves. Two
+failures were the script refusing a cube estimate outside the arm's reach or the work area before moving, and one was
+a `UR speedJ command failed` error from the robot interface.
 
 # Track B perception: calibration and cube localisation
 

@@ -5,8 +5,10 @@
 
 ## Run (PowerShell)
 
+From the repo root, after setting up `.venv` there (see Fresh environment below):
+
 ```
-cd "C:\Dev\University\41014\a4-sim\Track B"
+cd "Track B"
 ..\.venv\Scripts\python.exe main.py                      # live demo: back-to-back randomised picks until the window is closed
 ..\.venv\Scripts\python.exe main.py --yaw 45 --nudge     # cube rotated +/-45 deg, and moved 3 cm while the arm approaches
 ..\.venv\Scripts\python.exe main.py --push               # 40 N shove on the wrist while carrying the cube
@@ -18,8 +20,8 @@ cd "C:\Dev\University\41014\a4-sim\Track B"
 ..\.venv\Scripts\python.exe eval_perception.py           # Part B, unchanged
 ```
 
-Fresh environment: `py -3.12 -m venv .venv` then `.venv\Scripts\pip install -r "Track B\requirements.txt"` (scipy and
-matplotlib were added).
+Fresh environment, from the repo root: `py -3.12 -m venv .venv` then
+`.venv\Scripts\python.exe -m pip install -r "Track B\requirements.txt"` (scipy and matplotlib were added).
 
 In the viewer: green see-through box = cube KF estimate, blue dot = current PBVS target for the pinch point, top-left
 text = phase, estimate, 1 sigma, truth (eval only) and error. The separate "wrist camera" window shows the noisy RGB

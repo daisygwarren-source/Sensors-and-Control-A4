@@ -1,7 +1,7 @@
 """Plots of the hardware logs. There is no ground truth on hardware, so each plot compares against the best
 independent reference it has and says which.
 
-    python plot_logs.py C:\\Dev\\University\\41014\\hw-data\\2026-10-28        # every Tier 2 and Tier 3 log in it
+    python plot_logs.py ..\\..\\..\\hw-data\\2026-10-28                        # every Tier 2 and Tier 3 log in it
     python plot_logs.py ...\\joint_control_20261028_152739.npz --sim ...\\sim\\joint_control_20261028_134100.npz
     python plot_logs.py ...\\pick_20261028_152630
 
