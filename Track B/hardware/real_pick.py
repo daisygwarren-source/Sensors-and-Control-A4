@@ -400,7 +400,7 @@ def run_trial(robot, kin, cam, gripper, cfg, args, log, out, n):
                     task.go("descend", t)
             elif phase == "grasp":
                 w = gripper.grip(close_mm, args.force)
-                ok = w > close_mm + 5
+                ok = close_mm + 5 < w < obj_mm + 10
                 res["grip_width"] = w
                 log["grip"].append((t, w))
                 print(f"  gripper closed at {w:.1f} mm (object {obj_mm:.0f} mm, target {close_mm:.0f} mm): "

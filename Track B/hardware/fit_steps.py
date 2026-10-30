@@ -1,7 +1,7 @@
 """Lunch: the joint lag and encoder noise from the morning's step_*.npz and joints_*.npz -> config (tau, td,
 sigma_q, sigma_qd). Saves a plot per step file in FOLDER/fits.
 
-    python fit_steps.py C:\\Dev\\University\\41014\\hw-data\\2026-10-28
+    python fit_steps.py ..\\..\\..\\hw-data\\2026-10-28
 """
 import argparse
 from pathlib import Path

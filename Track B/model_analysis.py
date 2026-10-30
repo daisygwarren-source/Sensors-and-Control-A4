@@ -2,7 +2,7 @@
 A6 is the real UR3e's velocity-input model, with the lag measured by hardware/fit_steps.py.
 
     python model_analysis.py
-    python model_analysis.py --config C:\\Dev\\University\\41014\\hw-data\\2026-10-28\\config.json
+    python model_analysis.py --config results\\hardware\\2026-10-28\\config.json
 """
 import argparse
 import json
