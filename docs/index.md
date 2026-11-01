@@ -561,7 +561,24 @@ prints and how long it takes, and how to reproduce each table on this page. The 
 
 ## Generative AI declaration
 
-(later)
+The group used Claude Code (Anthropic) to help explain the brief and marking guide. We also used it to help plan,
+debug and review the camera calibration, cube localisation, Kalman filter, LQR, PBVS and UR3e hardware-control code,
+and to review our experiments and hardware logs against the brief. It reviewed the text and figures on this page from our
+measured outputs, and checked that every number quoted here matches the evaluation outputs and run logs.
+
+For the demo video, Claude Code reviewed the narration script and captions from the results on this page. It also wrote
+the Python and ffmpeg scripts that:
+
+- cut the footage and timed each shot to our recorded voiceovers
+- drew the title cards and diagrams
+- looped the music to the length of the video
+- mixed and loudness-normalised the audio
+- made the thumbnail and YouTube chapters
+
+We filmed all the footage and recorded all the voiceovers ourselves.
+
+All AI-assisted material is declared here. Each of us is responsible for reviewing, understanding and verifying the
+submitted work, and every result on this page comes from our own code and hardware runs.
 
 ## References
 
