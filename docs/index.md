@@ -557,7 +557,23 @@ prints and how long it takes, and how to reproduce each table on this page. The 
 
 ## Individual contributions
 
-(later)
+**Charlie White:** led sensing and calibration (Part B) and control (Part D): the checkerboard and hand-eye calibration,
+`locate_cube`, the joint Kalman filters, the LQR and PBVS controller, and the pick state machine. He brought the
+simulation pipeline across from a separate working repository in one merge
+([PR #6](https://github.com/daisygwarren-source/Sensors-and-Control-A4/pull/6)), so its commits here are all under his
+name. He ported the pipeline to the UR3e and put together the project page and video.
+
+**Sarah Gill:** led estimation (Part C). She wrote the cube Kalman filter (`KalmanFilter3D` in `src/estimation.py`) and
+the controllability and observability checks. She also wrote the first inverse kinematics solver and controller (branch
+[`ik-controller`](https://github.com/daisygwarren-source/Sensors-and-Control-A4/tree/ik-controller)), and filmed the
+hardware runs on 30 Oct.
+
+**Daisy Warren:** led modelling (Part A). She set up the repository and built the MuJoCo model the project runs on
+(`simulator.py`, `main.py`): the UR5e with the Robotiq 2F-85 gripper, the table, the cube and the wrist camera. She ran
+both hardware lab days with Charlie, on 28 and 30 Oct, and shared integration and robustness testing (Part E) on the
+real arm.
+
+**All members:** recorded the video narration.
 
 ## Generative AI declaration
 
