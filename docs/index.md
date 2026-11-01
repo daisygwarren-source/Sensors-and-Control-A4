@@ -6,9 +6,11 @@ title: Vision-guided pick
 
 **Group 9** (Canvas "Project 9"): Charlie White, Sarah Gill, Daisy Warren
 
-Repository: [github.com/daisygwarren-source/Sensors-and-Control-A4](https://github.com/daisygwarren-source/Sensors-and-Control-A4) · Video: (later)
+Repository: [github.com/daisygwarren-source/Sensors-and-Control-A4](https://github.com/daisygwarren-source/Sensors-and-Control-A4) · Video: [youtu.be/6Z9jczcKDqY](https://youtu.be/6Z9jczcKDqY)
 
 41014 Sensors and Control, Assessment 4, Track B (manipulator).
+
+<iframe style="width: 100%; aspect-ratio: 16 / 9; border: 0;" src="https://www.youtube.com/embed/6Z9jczcKDqY" title="Vision-guided pick: demo video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 ## Overview
 
