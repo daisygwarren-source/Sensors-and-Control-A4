@@ -27,60 +27,56 @@ def arrow(ax, a, b, label="", color="#333333", size=8, off=(0, 0.035), ha="cente
 
 
 def frames():
-    fig, ax = plt.subplots(figsize=(13, 8.2))
+    fig, ax = plt.subplots(figsize=(13, 8.4))
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
+    m, c, g = SRC["model"], SRC["calibration"], SRC["measured"]
 
-    ax.text(0.01, 0.97, "Simulation: UR5e, camera on the wrist", fontsize=12, weight="bold", va="top")
-    y = 0.86
-    xs = [0.07, 0.30, 0.53, 0.88]
-    box(ax, xs[0], y, "world", w=0.1)
-    box(ax, xs[1], y, "base\n(UR5e base body)", w=0.14)
-    box(ax, xs[2], y, "wrist_3_link", w=0.13)
-    box(ax, xs[3], y, "camera\nOpenCV: x right, y down,\nz forward (optical axis)", w=0.2, h=0.1)
-    arrow(ax, (xs[0] + 0.05, y), (xs[1] - 0.07, y), "Rz(180 deg)\nur5e.xml", SRC["model"], off=(0, 0.045))
-    arrow(ax, (xs[1] + 0.07, y), (xs[2] - 0.065, y), "FK(q_hat): six link\ntransforms, ur5e.xml\nq from 20-bit encoders",
-          SRC["model"], off=(0, 0.055))
-    arrow(ax, (xs[2] + 0.065, y), (xs[3] - 0.1, y), "T_wrist_cam: 0.10 m along y, 0.08 m\nalong z, optical axis "
-          "along +y\nsimulator.py (MuJoCo -z view, flip y and z)", SRC["model"], off=(0, 0.06))
-    ax.text(xs[3] - 0.02, y - 0.1, "K: calibrate.py on 40 checkerboard views\n(K_calib.npy, fx 433.16)", ha="center",
-            fontsize=8, color=SRC["calibration"])
+    def row(y0, title, boxes, labels, w):
+        # boxes in one line; each arrow's label sits in its own band above the boxes, so nothing overlaps
+        ax.text(0.01, y0, title, fontsize=12, weight="bold", va="top")
+        gap = (0.98 - len(boxes) * w) / (len(boxes) - 1)
+        xs = [0.01 + w / 2 + i * (w + gap) for i in range(len(boxes))]
+        yb = y0 - 0.19
+        for x, t in zip(xs, boxes):
+            box(ax, x, yb, t, w=w, h=0.1)
+        for x0, x1, (lines, back) in zip(xs, xs[1:], labels):
+            a, b = (x0 + w / 2 + 0.006, yb), (x1 - w / 2 - 0.006, yb)
+            arrow(ax, b if back else a, a if back else b, color=lines[0][1] if lines else "#333333")
+            for n, (t, col) in enumerate(lines):
+                ax.text((x0 + x1) / 2, y0 - 0.05 - 0.025 * n, t, ha="center", va="center", fontsize=8, color=col)
+        return xs, yb
 
-    ax.text(0.01, 0.725, "Hardware: UR3e, camera fixed in the cell (D455 on 30 Oct)", fontsize=12, weight="bold",
-            va="top")
-    yb, yc = 0.47, 0.585
-    box(ax, 0.07, yb, "base\n(UR controller\nbase frame)", w=0.11, h=0.095)
-    box(ax, 0.53, yc, "camera\nOpenCV axes", w=0.13)
-    box(ax, 0.40, 0.40, "tool0 (flange)", w=0.12)
-    box(ax, 0.70, 0.40, "TCP\n(panel setting)", w=0.11)
-    arrow(ax, (0.125, yb + 0.03), (0.465, yc), "", SRC["calibration"])
-    ax.text(0.17, 0.645, "T_base_cam = T_base_cam_fit (calib_handeye.py, ArUco marker,\n20 poses, RMS 0.80 px)",
-            fontsize=8, color=SRC["calibration"], ha="left", va="center")
-    ax.text(0.17, 0.605, "+ 0.020 m in base z (T_base_cam_dz, from the marker check)", fontsize=8,
-            color=SRC["measured"], ha="left", va="center")
-    ax.text(0.53, yc - 0.065, "K: factory intrinsics (RealSense)", ha="center", fontsize=8, color=SRC["calibration"])
-    arrow(ax, (0.125, yb - 0.03), (0.34, 0.40), "FK(q): RTB UR3e URDF, start=\"base\"\nq from RTDE joint readings",
-          SRC["model"], off=(-0.02, -0.05))
-    arrow(ax, (0.46, 0.40), (0.645, 0.40), "T_tool0_tcp: z 0.204 m\n(panel TCP setting)", SRC["measured"],
-          off=(0, 0.045))
+    xs, yb = row(0.97, "Simulation: UR5e, camera on the wrist",
+                 ["world", "base\n(UR5e base body)", "wrist_3_link", "camera\nOpenCV: x right, y down,\nz forward (optical axis)"],
+                 [([("Rz(180 deg)", m), ("ur5e.xml", m)], False),
+                  ([("FK(q_hat): six link transforms, ur5e.xml", m), ("q from 20-bit encoders", m)], False),
+                  ([("T_wrist_cam: 0.10 m along y, 0.08 m along z,", m), ("optical axis along +y", m),
+                    ("simulator.py (MuJoCo -z view, flip y and z)", m)], False)], 0.17)
+    ax.text(xs[3] + 0.085, yb - 0.075, "K: calibrate.py on 40 checkerboard views (K_calib.npy, fx 433.16)", ha="right",
+            fontsize=8, color=c)
 
-    ax.text(0.01, 0.27, "Cube measurement, both", fontsize=12, weight="bold", va="top")
-    yp = 0.15
-    steps = [(0.09, "pixel (u, v)\n+ depth"), (0.29, "camera frame\nK^-1 (u, v, 1) depth"), (0.49, "base frame"),
-             (0.69, "minus loc_offset\n(hardware only)"), (0.89, "cube KF\nmeasurement")]
-    for x, t in steps:
-        box(ax, x, yp, t, w=0.15, h=0.085)
-    labels = [("locate_cube: colour mask,\ntop face, table-ring\ndepth correction", SRC["model"]),
-              ("T_base_cam\n(sim: FK(q_hat) x T_wrist_cam)", SRC["model"]),
-              ("eval_objects.py --set-offset:\nmean bias against TCP touches", SRC["measured"]), ("", "#333333")]
-    for (x0, _), (x1, _), (lab, col) in zip(steps, steps[1:], labels):
-        arrow(ax, (x0 + 0.075, yp), (x1 - 0.075, yp), lab, col, off=(0, -0.085))
+    xs, yb = row(0.65, "Hardware: UR3e, camera fixed in the cell (D455 on 30 Oct)",
+                 ["camera\nOpenCV axes", "base\n(UR controller base frame)", "tool0 (flange)", "TCP\n(panel setting)"],
+                 [([("T_base_cam = T_base_cam_fit (calib_handeye.py,", c), ("ArUco marker, 20 poses, RMS 0.80 px)", c),
+                    ("+ 0.020 m in base z (T_base_cam_dz, from the marker check)", g)], True),
+                  ([("FK(q): RTB UR3e URDF, start=\"base\"", m), ("q from RTDE joint readings", m)], False),
+                  ([("T_tool0_tcp: z 0.204 m", g), ("(panel TCP setting)", g)], False)], 0.17)
+    ax.text(xs[0], yb - 0.075, "K: factory intrinsics (RealSense)", ha="center", fontsize=8, color=c)
 
-    for i, (name, col) in enumerate(SRC.items()):
-        ax.plot([0.62 + i * 0.13], [0.965], "s", color=col, ms=10)
-        ax.text(0.632 + i * 0.13, 0.965, {"model": "model file / code", "calibration": "calibration",
-                                          "measured": "measured"}[name], fontsize=9, va="center", color=col)
+    row(0.33, "Cube measurement, both",
+        ["pixel (u, v)\n+ depth", "camera frame\nK^-1 (u, v, 1) depth", "base frame", "minus loc_offset\n(hardware only)",
+         "cube KF\nmeasurement"],
+        [([("locate_cube: colour mask,", m), ("top face, table-ring", m), ("depth correction", m)], False),
+         ([("T_base_cam", m), ("(sim: FK(q_hat) x T_wrist_cam)", m)], False),
+         ([("eval_objects.py --set-offset:", g), ("mean bias against TCP touches", g)], False),
+         ([], False)], 0.15)
+
+    for x, (name, col) in zip([0.698, 0.828, 0.923], SRC.items()):
+        ax.plot([x], [0.965], "s", color=col, ms=10)
+        ax.text(x + 0.012, 0.965, {"model": "model file / code", "calibration": "calibration",
+                                   "measured": "measured"}[name], fontsize=9, va="center", color=col)
     fig.savefig(OUT / "frames.png", dpi=130, bbox_inches="tight")
     plt.close(fig)
 
