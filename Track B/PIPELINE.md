@@ -1,8 +1,5 @@
 # Track B full pipeline: sim demo notes
 
-> Working notes for the hardware-induction sim demo, drafted with Claude Code (Opus 5.5). Not project-page text:
-> rewrite in your own words before anything goes on the page, and list the tool and what it did in the GenAI declaration.
-
 ## Run (PowerShell)
 
 From the repo root, after setting up `.venv` there (see Fresh environment below):

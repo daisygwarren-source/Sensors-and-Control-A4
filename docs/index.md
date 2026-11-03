@@ -580,7 +580,9 @@ real arm.
 The group used Claude Code (Anthropic) to help explain the brief and marking guide. We also used it to help plan,
 debug and review the camera calibration, cube localisation, Kalman filter, LQR, PBVS and UR3e hardware-control code,
 and to review our experiments and hardware logs against the brief. It reviewed the text and figures on this page from our
-measured outputs, and checked that every number quoted here matches the evaluation outputs and run logs.
+measured outputs, and checked that every number quoted here matches the evaluation outputs and run logs. Claude Code
+was also used to draft the `PIPELINE.md` file, based on the code written by us and the results from both simulation and
+hardware.
 
 For the demo video, Claude Code reviewed the narration script and captions from the results on this page. It also wrote
 the Python and ffmpeg scripts that:
